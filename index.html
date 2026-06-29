@@ -234,7 +234,10 @@ function on(id,ev,fn){const el=$(id);if(el)el.addEventListener(ev,fn);}
 function cardVis(card,hidden=false,sm=false,glow=false,burned=false){
   const cls=`crd ${sm?"sm":"lg"} ${hidden?"hidden":""} ${glow?"glow":""} ${burned?"burned":""}`;
   if(hidden) return `<div class="${cls}"><span class="hidden-sym">✦</span></div>`;
-  return `<div class="${cls}"><span class="sym">${card.symbol}</span><span class="cname">${card.name}</span></div>`;
+  return `<div class="${cls}">
+    <span class="sym" style="font-size:${sm?"1.6rem":"2.2rem"}">${card.symbol}</span>
+    <span class="cname" style="font-size:${sm?".42rem":".58rem"};margin-top:2px">${card.name}</span>
+  </div>`;
 }
 function emptySlot(sm=false){
   return `<div class="crd-empty ${sm?"sm":""}"><span style="color:var(--bord);font-size:.7rem">?</span></div>`;
@@ -254,7 +257,19 @@ function pillType(type){
 // ═══════════════════════════════════════════════
 // COMBINAISONS REF
 // ═══════════════════════════════════════════════
-function renderCombosRef(){
+function renderCombosRef(myCardIds=[]){
+  // Une combo est possible si aucune de ses cartes n'est définitivement exclue.
+  // Avec un double deck, une carte peut apparaître 2 fois — on vérifie juste
+  // que chaque carte requise par la combo existe encore dans les cartes
+  // potentiellement disponibles (= pas dans ma main ET pas impossible).
+  // Logique : la combo est IMPOSSIBLE si ma main contient déjà 1+ cartes
+  // ET qu'une carte requise par la combo ne peut pas coexister avec ce que j'ai.
+  // Règle simple : si j'ai des cartes, une combo est possible si ma main
+  // est un sous-ensemble des cartes de la combo (toutes mes cartes sont dans la combo).
+  function isPossible(combo) {
+    if(myCardIds.length===0) return true;
+    return myCardIds.every(id => combo.cards.includes(id));
+  }
   const groups=[
     {label:"👑 Royales",   types:["royal"]},
     {label:"⚜️ Classiques",types:["classic"]},
@@ -266,15 +281,24 @@ function renderCombosRef(){
       <div style="margin-bottom:1rem">
         <div style="font-family:sans-serif;font-size:.8rem;color:var(--muted);margin-bottom:.5rem;font-weight:700">${g.label}</div>
         <div class="combos-grid">
-          ${combos.map(c=>`
-            <div class="combo-card ${c.type}">
+          ${combos.map(c=>{
+            const possible=isPossible(c);
+            const opacity=possible?"1":"0.28";
+            const filter=possible?"none":"grayscale(1)";
+            return `
+            <div class="combo-card ${c.type}" style="opacity:${opacity};filter:${filter};transition:opacity .3s,filter .3s">
               <div class="row mb05">
-                <span class="goldL" style="font-size:.88rem">${c.name}</span>
+                <span class="${possible?"goldL":"muted"}" style="font-size:.88rem">${c.name}</span>
                 ${pillType(c.type)}
               </div>
-              <div class="combo-cards">${c.cards.map(cid=>{const card=CARDS.find(x=>x.id===cid);return`<span class="combo-ctag">${card.symbol}</span>`;}).join("")}</div>
+              <div class="combo-cards">${c.cards.map(cid=>{
+                const card=CARDS.find(x=>x.id===cid);
+                const inHand=myCardIds.includes(cid);
+                return `<span class="combo-ctag" style="${inHand?"background:#2a4a2a;border:1px solid #22c55e;color:#86efac":""}">${card.symbol}</span>`;
+              }).join("")}</div>
               ${c.effect?`<div style="color:#f87171;font-size:.7rem;font-family:sans-serif;margin-top:.25rem">⚡ ${c.effect}</div>`:""}
-            </div>`).join("")}
+            </div>`;
+          }).join("")}
         </div>
       </div>`;
   }).join("");
@@ -485,7 +509,7 @@ function screenGame(sess,initialRs){
     </div>
     <div class="box" id="scores-box"></div>
     <button class="tog-btn" id="tog-c3">▼ Voir les combinaisons</button>
-    <div id="combos-ref3" class="hidden">${renderCombosRef()}</div>
+    <div id="combos-ref3" class="hidden"></div>
     <div id="modal-area"></div>
   `);
   let cOpen=false;
@@ -635,6 +659,13 @@ function renderGame(sess,rs){
     <div class="scores-row">
       ${(rs.allScores||[]).map(s=>`<span class="sans" style="font-size:.88rem"><span class="muted">${s.name} : </span><strong class="goldL">${s.total}</strong></span>`).join("")}
     </div>`;
+
+  // Mise à jour aide-mémoire avec la main du joueur (si ouverte ou pas)
+  const cr3=$("combos-ref3");
+  if(cr3){
+    const myCardIds=(me?.hand||[]).map(c=>c.id);
+    cr3.innerHTML=renderCombosRef(myCardIds);
+  }
 
   // Abandon votes affichage
   const modal=$("modal-area");

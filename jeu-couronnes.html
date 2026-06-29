@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>⚜ Le Jeu des Couronnes</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:      #08080f;
+    --surf:    #0f0f1c;
+    --card:    #15152a;
+    --bord:    #252545;
+    --gold:    #c9a84c;
+    --goldL:   #f0d080;
+    --royal:   #8b5cf6;
+    --nem:     #dc2626;
+    --text:    #e8e0d5;
+    --muted:   #7870a0;
+    --green:   #22c55e;
+    --red:     #ef4444;
+  }
+  body { background: var(--bg); color: var(--text); font-family: Georgia, serif; min-height: 100vh; }
+  h1,h2,h3 { font-family: Georgia, serif; }
+
+  /* ── layout ── */
+  #app { max-width: 900px; margin: 0 auto; padding: 0 1rem 3rem; }
+  header { text-align: center; padding: 1.5rem 1rem 1rem; border-bottom: 1px solid var(--bord); margin-bottom: 1.25rem; }
+  header h1 { font-size: 2rem; font-weight: 700; color: var(--goldL); letter-spacing: .06em; }
+  header p  { color: var(--muted); font-size: .85rem; margin-top: .25rem; font-family: sans-serif; }
+
+  /* ── box / card ── */
+  .box { background: var(--surf); border: 1px solid var(--bord); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
+  .box.accent { border-color: var(--gold); }
+  .box.royal  { border-color: #4c1d9588; }
+
+  /* ── buttons ── */
+  button { cursor: pointer; font-family: sans-serif; font-size: .88rem; font-weight: 600;
+           border-radius: 6px; padding: .55rem 1.25rem; transition: opacity .15s, transform .1s; }
+  button:active { transform: scale(.97); }
+  button:disabled { opacity: .45; cursor: default; }
+  .btn-primary  { background: var(--gold); color: #1a1000; border: none; }
+  .btn-secondary{ background: transparent; color: var(--text); border: 1px solid var(--bord); }
+  .btn-danger   { background: #7f1d1d; color: #fca5a5; border: none; }
+  .btn-full     { width: 100%; }
+
+  /* ── inputs ── */
+  input[type=text], input[type=number] {
+    background: var(--card); border: 1px solid var(--bord); border-radius: 6px;
+    color: var(--text); padding: .5rem .8rem; font-size: 1rem; font-family: sans-serif; width: 100%;
+  }
+  input:focus { outline: none; border-color: var(--gold); }
+
+  /* ── pill / tag ── */
+  .pill-royal  { display:inline-block;padding:2px 8px;border-radius:999px;font-size:.68rem;font-family:sans-serif;font-weight:700;background:#1e1240;color:#a78bfa;border:1px solid #4c1d95; }
+  .pill-nem    { display:inline-block;padding:2px 8px;border-radius:999px;font-size:.68rem;font-family:sans-serif;font-weight:700;background:#3b0a0a;color:#f87171;border:1px solid #7f1d1d; }
+  .pill-elim   { display:inline-block;padding:2px 8px;border-radius:999px;font-size:.68rem;font-family:sans-serif;font-weight:700;background:#3b0a0a;color:#f87171;border:1px solid #7f1d1d; }
+  .tag-active  { display:inline-block;padding:3px 10px;border-radius:999px;font-size:.75rem;font-family:sans-serif;background:#14532d;color:var(--green);border:1px solid #166534; }
+
+  /* ── card visuals ── */
+  .crd { border-radius: 9px; border: 2px solid var(--bord); background: var(--card);
+         display: flex; flex-direction: column; align-items: center; justify-content: center;
+         flex-shrink: 0; user-select: none; transition: box-shadow .2s, border-color .2s; }
+  .crd.sm  { width: 64px; height: 92px; }
+  .crd.lg  { width: 92px; height: 132px; }
+  .crd.hidden { background: #0a0a16; }
+  .crd.glow { border-color: var(--gold); box-shadow: 0 0 14px #c9a84c55; }
+  .crd .sym { font-size: 1.8rem; color: var(--goldL); font-weight: bold; }
+  .crd .cname { color: var(--muted); text-align: center; padding: 0 5px; line-height: 1.25;
+                font-size: .65rem; margin-top: 4px; font-family: sans-serif; }
+  .crd.sm .sym   { font-size: 1.2rem; }
+  .crd.sm .cname { font-size: .52rem; }
+  .crd .hidden-sym { font-size: 2rem; color: var(--bord); }
+  .crd.sm .hidden-sym { font-size: 1.4rem; }
+  .crd-empty { border-radius: 7px; border: 1px dashed var(--bord); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .crd-empty.sm { width:64px; height:92px; }
+
+  /* ── player grid ── */
+  .players-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: .65rem; margin-bottom: 1rem; }
+  .player-box { background: var(--surf); border: 1px solid var(--bord); border-radius: 12px; padding: .9rem; transition: border-color .2s; }
+  .player-box.mine   { border-color: #4c1d9588; }
+  .player-box.active { border-color: var(--gold); }
+  .player-hand { display: flex; gap: 5px; flex-wrap: wrap; margin-top: .4rem; }
+
+  /* ── log ── */
+  #log { max-height: 150px; overflow-y: auto; padding: .4rem 1rem; }
+  .log-line  { font-family: sans-serif; font-size: .78rem; padding: 2px 0; color: var(--text); opacity: .85; }
+  .log-sep   { font-family: sans-serif; font-size: .78rem; padding: 2px 0; color: var(--gold); }
+
+  /* ── combos ref ── */
+  .combos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px,1fr)); gap: .65rem; margin-top: .75rem; }
+  .combo-card  { background: var(--surf); border: 1px solid var(--bord); border-radius: 8px; padding: .7rem; }
+  .combo-card.nem { border-color: #7f1d1d; }
+  .combo-cards { display: flex; gap: 3px; flex-wrap: wrap; margin: .3rem 0; }
+  .combo-ctag  { background: #2a2a4a; padding: 2px 6px; border-radius: 4px; font-size: .7rem; font-family: sans-serif; color: var(--text); }
+
+  /* ── scores ── */
+  .scores-row { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+
+  /* ── misc ── */
+  .row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+  .row-sb { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .5rem; }
+  .muted  { color: var(--muted); font-family: sans-serif; font-size: .85rem; }
+  .gold   { color: var(--gold); }
+  .goldL  { color: var(--goldL); }
+  .sans   { font-family: sans-serif; }
+  .mt1    { margin-top: 1rem; }
+  .mb1    { margin-bottom: 1rem; }
+  .mb05   { margin-bottom: .5rem; }
+  .lbl    { display: block; color: var(--muted); font-family: sans-serif; font-size: .8rem; margin-bottom: .4rem; }
+  .room-code { font-size: 2.2rem; letter-spacing: .25em; font-family: monospace; color: var(--goldL);
+               background: var(--card); border: 1px solid var(--gold); border-radius: 8px; padding: .4rem 1.2rem; display:inline-block; }
+  .error { color: var(--red); font-family: sans-serif; font-size: .85rem; margin-top: .5rem; }
+  .win-box { background: #1a0a00; border: 1px solid var(--gold); border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem; text-align: center; }
+  .win-title { font-size: 1.3rem; color: var(--goldL); margin-bottom: .4rem; }
+  .tog-btn { background: transparent; color: var(--muted); border: 1px solid var(--bord); border-radius: 6px; padding: .45rem 1rem; font-size: .82rem; font-family: sans-serif; width:100%; margin-top:.5rem; }
+
+  /* ── toggle size buttons ── */
+  .size-btn { min-width: 46px; }
+
+  /* ── two col ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+  @media(max-width:500px){ .two-col { grid-template-columns: 1fr; } }
+
+  /* ── hidden ── */
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>⚜ Le Jeu des Couronnes</h1>
+  <p>Enchères · Combinaisons · Némésis · Multijoueur en ligne</p>
+</header>
+<div id="app">
+  <!-- screens injected by JS -->
+</div>
+
+<script type="module">
+// ═══════════════════════════════════════════════════════════════
+// FIREBASE
+// ═══════════════════════════════════════════════════════════════
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, set, get, onValue, off } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAQK8FPpb_QHYZzr7NrWgKYict7Gv7pd8k",
+  authDomain: "jeu-couronnes.firebaseapp.com",
+  databaseURL: "https://jeu-couronnes-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "jeu-couronnes",
+  storageBucket: "jeu-couronnes.firebasestorage.app",
+  messagingSenderId: "722966971918",
+  appId: "1:722966971918:web:efe1a55aa1adfe9b3c9e5f"
+};
+
+const fbApp = initializeApp(firebaseConfig);
+const db    = getDatabase(fbApp);
+
+async function dbGet(roomId)        { const s = await get(ref(db,`rooms/${roomId}`)); return s.exists() ? s.val() : null; }
+async function dbSet(roomId, data)  { await set(ref(db, `rooms/${roomId}`), data); }
+function dbListen(roomId, cb)       { const r = ref(db,`rooms/${roomId}`); onValue(r, s => cb(s.exists()?s.val():null)); return ()=>off(r); }
+
+// ═══════════════════════════════════════════════════════════════
+// GAME DATA
+// ═══════════════════════════════════════════════════════════════
+const CARDS = [
+  {id:7,name:"Le Souverain d'Ébène", symbol:"VII", value:7},
+  {id:6,name:"La Dame d'Ivoire",      symbol:"VI",  value:6},
+  {id:5,name:"Le Chevalier d'Acier",  symbol:"V",   value:5},
+  {id:4,name:"L'Alchimiste d'Or",     symbol:"IV",  value:4},
+  {id:3,name:"Le Prophète Voilé",     symbol:"III", value:3},
+  {id:2,name:"Le Masque de Velours",  symbol:"II",  value:2},
+  {id:1,name:"Le Fou Écarlate",       symbol:"I",   value:1},
+];
+
+const COMBINATIONS = [
+  {id:1, name:"Le Couronnement d'Ébène",  type:"royal",   cards:[7,6,5], rank:1,  quote:"Le pouvoir, la noblesse et la force ne font qu'un."},
+  {id:2, name:"Le Trône des Secrets",      type:"royal",   cards:[7,6,4], rank:2,  quote:"Le royaume repose autant sur la connaissance que sur la couronne."},
+  {id:3, name:"Le Jugement du Prophète",   type:"royal",   cards:[7,6,3], rank:3,  quote:"Le destin lui-même s'incline devant le trône."},
+  {id:4, name:"La Lame du Royaume",        type:"royal",   cards:[7,5,4], rank:4,  quote:"La conquête naît de l'acier et de l'ingéniosité."},
+  {id:5, name:"Le Pacte Royal",            type:"royal",   cards:[7,5,3], rank:5,  quote:"Un roi averti vaut une armée."},
+  {id:6, name:"Les Intrigues de Cour",     type:"royal",   cards:[6,4,3], rank:6,  quote:"Les plus grandes guerres commencent dans les salons."},
+  {id:7, name:"Le Cercle des Sages",       type:"royal",   cards:[6,5,2], rank:7,  quote:"L'épée protège ce que les secrets construisent."},
+  {id:8, name:"Le Bal Masqué",             type:"royal",   cards:[5,4,2], rank:8,  quote:"Sous chaque masque se cache une ambition."},
+  {id:9, name:"Le Destin Voilé",           type:"royal",   cards:[5,3,1], rank:9,  quote:"Même le héros ne peut fuir la prophétie."},
+  {id:10,name:"Les Héritiers Déchus",      type:"royal",   cards:[4,3,1], rank:10, quote:"Le savoir ultime conduit parfois à la chute."},
+  {id:11,name:"L'Ordre des Ombres",        type:"royal",   cards:[4,2,1], rank:11, quote:"Le monde appartient à ceux que personne ne voit agir."},
+  {id:12,name:"La Révolte des Masques",    type:"nemesis", cards:[7,2,1], rank:12, quote:"Le peuple ne renverse jamais le roi de face.",            effect:"Annule toute combinaison Royale présente."},
+  {id:13,name:"Le Pacte des Traîtres",     type:"nemesis", cards:[6,2,1], rank:13, quote:"La cour tombe toujours de l'intérieur.",                 effect:"Annule toute combinaison Royale présente."},
+  {id:14,name:"L'Éclipse Écarlate",        type:"nemesis", cards:[3,2,1], rank:14, quote:"Lorsque le destin s'obscurcit, même les couronnes deviennent poussière.", effect:"Annule toute combinaison Royale présente."},
+];
+
+function findCombo(cardIds) {
+  const s = [...cardIds].sort((a,b)=>a-b);
+  return COMBINATIONS.find(c => [...c.cards].sort((a,b)=>a-b).every((v,i)=>v===s[i])) || null;
+}
+
+function shuffle(arr) {
+  const a=[...arr];
+  for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
+  return a;
+}
+
+function resolveManche(players) {
+  const results = players.map(p=>({...p, combo:findCombo(p.hand.map(c=>c.id))}));
+  let active = results.map(r=>({...r, eliminated:false}));
+  if(active.some(p=>p.combo?.type==="nemesis"))
+    active = active.map(p=>({...p, eliminated:p.combo?.type==="royal"}));
+  const cont = active.filter(p=>!p.eliminated);
+  const royal  = cont.filter(p=>p.combo?.type==="royal");
+  const nem    = cont.filter(p=>p.combo?.type==="nemesis");
+  if(royal.length>0){
+    const w=royal.reduce((b,c)=>c.combo.rank<b.combo.rank?c:b);
+    return {winner:w,draw:null,reason:`${w.name} remporte la manche avec « ${w.combo.name} »`,results:active};
+  }
+  if(nem.length>0){
+    const w=nem.reduce((b,c)=>c.combo.rank<b.combo.rank?c:b);
+    return {winner:w,draw:null,reason:`${w.name} remporte la manche avec « ${w.combo.name} »`,results:active};
+  }
+  const ranked=cont.map(p=>({...p,total:p.hand.reduce((s,c)=>s+c.value,0)}));
+  const maxV=Math.max(...ranked.map(p=>p.total));
+  const tied=ranked.filter(p=>p.total===maxV);
+  if(tied.length>1) return {winner:null,draw:tied,reason:`Égalité ! Le pot est partagé. (${maxV} pts chacun)`,results:active};
+  const w=ranked.reduce((b,c)=>c.total>b.total?c:b);
+  return {winner:w,draw:null,reason:`${w.name} remporte la manche par valeur numérique (${w.total} pts)`,results:active};
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SESSION (localStorage — persists on reload)
+// ═══════════════════════════════════════════════════════════════
+function saveSession(s)  { localStorage.setItem("jdc_session", JSON.stringify(s)); }
+function loadSession()   { try { return JSON.parse(localStorage.getItem("jdc_session")); } catch{ return null; } }
+function clearSession()  { localStorage.removeItem("jdc_session"); }
+
+// ═══════════════════════════════════════════════════════════════
+// DOM HELPERS
+// ═══════════════════════════════════════════════════════════════
+const app = document.getElementById("app");
+function render(html) { app.innerHTML = html; }
+function $(id)        { return document.getElementById(id); }
+function on(id, ev, fn) { const el=$(id); if(el) el.addEventListener(ev, fn); }
+
+function cardVis(card, hidden=false, sm=false, glow=false) {
+  const cls = `crd ${sm?"sm":"lg"} ${hidden?"hidden":""} ${glow?"glow":""}`;
+  if(hidden) return `<div class="${cls}"><span class="hidden-sym">✦</span></div>`;
+  return `<div class="${cls}"><span class="sym">${card.symbol}</span><span class="cname">${card.name}</span></div>`;
+}
+function emptySlot(sm=false) {
+  return `<div class="crd-empty ${sm?"sm":""}"><span style="color:var(--bord);font-size:.7rem">?</span></div>`;
+}
+
+function pillCombo(combo, eliminated=false) {
+  if(!combo) return "";
+  if(eliminated) return `<span class="pill-elim">❌ ${combo.name}</span>`;
+  return `<span class="${combo.type==="nemesis"?"pill-nem":"pill-royal"}">${combo.name}</span>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SCREEN: LOBBY
+// ═══════════════════════════════════════════════════════════════
+function screenLobby(err="") {
+  render(`
+    <div class="box">
+      <h2 class="goldL mb05" style="font-size:1.3rem">Bienvenue</h2>
+      <p class="muted mb1">Crée une salle ou rejoins celle d'un ami avec son code.</p>
+      <div class="row mb1">
+        <button class="btn-primary" id="btn-create">Créer une salle</button>
+        <button class="btn-secondary" id="btn-join-tog">Rejoindre une salle</button>
+      </div>
+    </div>
+
+    <div class="box accent hidden" id="create-form">
+      <h3 class="goldL mb1" style="font-size:1.1rem">Créer une salle</h3>
+      <label class="lbl">Ton nom</label>
+      <input type="text" id="c-name" placeholder="Ex : Aliénor" maxlength="20" class="mb1" />
+      <label class="lbl">Joueurs max</label>
+      <div class="row mb1">
+        ${[2,3,4].map(n=>`<button class="btn-secondary size-btn nbtn" data-n="${n}">${n}</button>`).join("")}
+      </div>
+      <label class="lbl">Mise de départ</label>
+      <div class="row mb1">
+        ${[50,100,200,500].map(v=>`<button class="btn-secondary bbtn" data-v="${v}">${v} 🪙</button>`).join("")}
+      </div>
+      ${err?`<p class="error">${err}</p>`:""}
+      <button class="btn-primary" id="btn-do-create">Créer →</button>
+    </div>
+
+    <div class="box accent hidden" id="join-form">
+      <h3 class="goldL mb1" style="font-size:1.1rem">Rejoindre une salle</h3>
+      <label class="lbl">Ton nom</label>
+      <input type="text" id="j-name" placeholder="Ex : Baudouin" maxlength="20" class="mb1" />
+      <label class="lbl">Code de la salle</label>
+      <input type="text" id="j-code" placeholder="XXXXXX" maxlength="6" style="text-transform:uppercase;letter-spacing:.15em;font-size:1.2rem" class="mb1" />
+      ${err?`<p class="error">${err}</p>`:""}
+      <button class="btn-primary" id="btn-do-join">Rejoindre →</button>
+    </div>
+
+    <button class="tog-btn" id="tog-combos">▼ Voir toutes les combinaisons</button>
+    <div id="combos-ref" class="hidden">${renderCombosRef()}</div>
+  `);
+
+  let selectedN = 2, selectedB = 100;
+
+  on("btn-create", "click", ()=>{ $("create-form").classList.toggle("hidden"); $("join-form").classList.add("hidden"); });
+  on("btn-join-tog","click",()=>{ $("join-form").classList.toggle("hidden"); $("create-form").classList.add("hidden"); });
+
+  document.querySelectorAll(".nbtn").forEach(b=>{
+    b.addEventListener("click",()=>{ selectedN=+b.dataset.n; document.querySelectorAll(".nbtn").forEach(x=>x.className="btn-secondary size-btn nbtn"); b.className="btn-primary size-btn nbtn"; });
+  });
+  document.querySelectorAll(".bbtn").forEach(b=>{
+    b.addEventListener("click",()=>{ selectedB=+b.dataset.v; document.querySelectorAll(".bbtn").forEach(x=>x.className="btn-secondary bbtn"); b.className="btn-primary bbtn"; });
+  });
+
+  on("btn-do-create","click", async ()=>{
+    const name = $("c-name").value.trim();
+    if(!name) return screenLobby("Entre ton nom.");
+    const roomId = Math.random().toString(36).slice(2,8).toUpperCase();
+    const playerId = crypto.randomUUID();
+    const rs = {
+      roomId, status:"lobby", budget:selectedB, maxPlayers:selectedN, round:1,
+      allScores:[],
+      players:[{id:playerId,name,coins:selectedB,hand:[]}],
+      deck:[], pot:0, auctionPhase:0, auctionPriority:0,
+      auctionCard:null, currentBid:0, currentBidder:-1, lastBidder:-1,
+      auctionLog:[], mancheOver:false, winner:null, winReason:"", drawPlayers:null, roundResults:null,
+    };
+    await dbSet(roomId, rs);
+    const sess = {roomId, playerId, playerName:name};
+    saveSession(sess);
+    screenWaiting(sess);
+  });
+
+  on("btn-do-join","click", async ()=>{
+    const name = $("j-name").value.trim();
+    const code = $("j-code").value.trim().toUpperCase();
+    if(!name) return screenLobby("Entre ton nom.");
+    if(!code) return screenLobby("Entre le code de la salle.");
+    const rs = await dbGet(code);
+    if(!rs) return screenLobby("Salle introuvable. Vérifie le code.");
+    if(rs.status!=="lobby") return screenLobby("La partie est déjà commencée.");
+    if(rs.players.length>=rs.maxPlayers) return screenLobby("Salle pleine.");
+    const playerId = crypto.randomUUID();
+    rs.players.push({id:playerId,name,coins:rs.budget,hand:[]});
+    await dbSet(code, rs);
+    const sess = {roomId:code, playerId, playerName:name};
+    saveSession(sess);
+    screenWaiting(sess);
+  });
+
+  let combosOpen=false;
+  on("tog-combos","click",()=>{
+    combosOpen=!combosOpen;
+    $("combos-ref").classList.toggle("hidden",!combosOpen);
+    $("tog-combos").textContent = combosOpen?"▲ Masquer les combinaisons":"▼ Voir toutes les combinaisons";
+  });
+}
+
+function renderCombosRef() {
+  return `<div class="combos-grid">${COMBINATIONS.map(c=>`
+    <div class="combo-card ${c.type==="nemesis"?"nem":""}">
+      <div class="row mb05">
+        <span class="muted" style="font-size:.75rem;font-weight:700">#${c.id}</span>
+        <span class="goldL" style="font-size:.88rem">${c.name}</span>
+        <span class="${c.type==="nemesis"?"pill-nem":"pill-royal"}">${c.type==="nemesis"?"Némésis":"Royale"}</span>
+      </div>
+      <div class="combo-cards">${c.cards.map(cid=>{const card=CARDS.find(x=>x.id===cid);return`<span class="combo-ctag">${card.symbol}</span>`;}).join("")}</div>
+      <div class="muted" style="font-size:.72rem;font-style:italic">"${c.quote}"</div>
+      ${c.effect?`<div style="color:#f87171;font-size:.7rem;font-family:sans-serif;margin-top:.25rem">⚡ ${c.effect}</div>`:""}
+    </div>`).join("")}</div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SCREEN: WAITING ROOM
+// ═══════════════════════════════════════════════════════════════
+let waitingUnsub = null;
+
+function screenWaiting(sess) {
+  if(waitingUnsub) { waitingUnsub(); waitingUnsub=null; }
+  render(`
+    <div class="box accent">
+      <div class="row-sb mb1">
+        <h2 class="goldL" style="font-size:1.3rem">Salle d'attente</h2>
+        <button class="btn-secondary" id="btn-leave">Quitter</button>
+      </div>
+      <p class="muted mb1">Partage ce code avec tes amis :</p>
+      <div class="row mb1">
+        <span class="room-code">${sess.roomId}</span>
+        <button class="btn-secondary" id="btn-copy">Copier</button>
+      </div>
+      <div id="waiting-players" class="mb1"></div>
+      <div id="waiting-action"></div>
+    </div>
+    <button class="tog-btn" id="tog-combos2">▼ Voir les combinaisons</button>
+    <div id="combos-ref2" class="hidden">${renderCombosRef()}</div>
+  `);
+
+  on("btn-copy","click",()=>{ navigator.clipboard?.writeText(sess.roomId); $("btn-copy").textContent="✓ Copié"; setTimeout(()=>{ const b=$("btn-copy"); if(b) b.textContent="Copier"; },2000); });
+  on("btn-leave","click", async ()=>{
+    if(waitingUnsub){waitingUnsub();waitingUnsub=null;}
+    const rs = await dbGet(sess.roomId);
+    if(rs){ rs.players=rs.players.filter(p=>p.id!==sess.playerId); if(rs.players.length===0) await dbSet(sess.roomId,null); else await dbSet(sess.roomId,rs); }
+    clearSession(); screenLobby();
+  });
+
+  let combosOpen2=false;
+  on("tog-combos2","click",()=>{
+    combosOpen2=!combosOpen2;
+    $("combos-ref2").classList.toggle("hidden",!combosOpen2);
+    $("tog-combos2").textContent=combosOpen2?"▲ Masquer":"▼ Voir les combinaisons";
+  });
+
+  waitingUnsub = dbListen(sess.roomId, rs=>{
+    if(!rs) return;
+    if(rs.status==="playing") { if(waitingUnsub){waitingUnsub();waitingUnsub=null;} screenGame(sess, rs); return; }
+    const isHost = rs.players[0]?.id===sess.playerId;
+    const pl=$("waiting-players");
+    const ac=$("waiting-action");
+    if(!pl||!ac) return;
+    pl.innerHTML = `
+      <div class="muted mb05">${rs.players.length}/${rs.maxPlayers} joueurs · Mise : ${rs.budget} 🪙</div>
+      ${rs.players.map((p,i)=>`
+        <div class="row" style="padding:4px 0;font-family:sans-serif;font-size:.9rem">
+          <span class="tag-active">●</span>
+          <span style="color:${p.id===sess.playerId?"var(--goldL)":"var(--text)"}">${p.name}${p.id===sess.playerId?" (toi)":""}${i===0?" 👑":""}</span>
+        </div>`).join("")}`;
+    ac.innerHTML = isHost
+      ? `<button class="btn-primary" id="btn-start" ${rs.players.length<2?"disabled":""}>
+           ${rs.players.length<2?"En attente de joueurs…":"Lancer la partie →"}
+         </button>`
+      : `<p class="muted">En attente que l'hôte lance la partie…</p>`;
+    if(isHost) on("btn-start","click", ()=>doStartGame(sess.roomId));
+  });
+}
+
+async function doStartGame(roomId) {
+  const rs = await dbGet(roomId);
+  if(!rs||rs.players.length<2) return;
+  const numP = rs.players.length;
+  const allCards = shuffle([...CARDS]);
+  const dealt = allCards.slice(0,numP);
+  const deckRaw = allCards.slice(numP);
+  const bigBlindIdx = 0;
+  const sb = Math.max(1,Math.floor(rs.budget*.02));
+  const bb = sb*2;
+  let pot=0;
+  const players = rs.players.map((p,i)=>{
+    const pay=i===bigBlindIdx?bb:sb;
+    pot+=Math.min(pay,p.coins);
+    return {...p, coins:Math.max(0,p.coins-pay), hand:[dealt[i]]};
+  });
+  const card = deckRaw[0];
+  const deck  = deckRaw.slice(1);
+  await dbSet(roomId, {
+    ...rs, status:"playing", deck, pot, players,
+    auctionPhase:1, auctionPriority:bigBlindIdx,
+    currentBid:0, currentBidder:bigBlindIdx, lastBidder:-1,
+    auctionCard:card,
+    auctionLog:[
+      `Manche 1 — Grosse blinde : ${players[bigBlindIdx].name} (${bb} 🪙). Petites blindes : ${sb} 🪙.`,
+      `Pot de départ : ${pot} 🪙.`,
+      `── Carte révélée : ${card.name} (${card.symbol}) — Priorité : ${players[bigBlindIdx].name}`
+    ],
+    mancheOver:false, winner:null, winReason:"", drawPlayers:null, roundResults:null,
+    allScores: rs.players.map(p=>({id:p.id,name:p.name,total:0})),
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SCREEN: GAME
+// ═══════════════════════════════════════════════════════════════
+let gameUnsub = null;
+let gameActing = false;
+
+function screenGame(sess, initialRs) {
+  if(gameUnsub){gameUnsub();gameUnsub=null;}
+  gameActing = false;
+
+  render(`
+    <div id="game-header" class="row-sb mb1"></div>
+    <div id="players-grid" class="players-grid"></div>
+    <div id="auction-area"></div>
+    <div id="manche-over-area"></div>
+    <div class="box" style="overflow:hidden;padding:0;margin-bottom:1rem">
+      <div style="padding:.4rem 1rem;border-bottom:1px solid var(--bord);font-family:sans-serif;font-size:.75rem;color:var(--muted)">Journal</div>
+      <div id="log"></div>
+    </div>
+    <div class="box" id="scores-box"></div>
+    <button class="tog-btn" id="tog-combos3">▼ Voir les combinaisons</button>
+    <div id="combos-ref3" class="hidden">${renderCombosRef()}</div>
+  `);
+
+  let combosOpen3=false;
+  on("tog-combos3","click",()=>{
+    combosOpen3=!combosOpen3;
+    $("combos-ref3").classList.toggle("hidden",!combosOpen3);
+    $("tog-combos3").textContent=combosOpen3?"▲ Masquer":"▼ Voir les combinaisons";
+  });
+
+  gameUnsub = dbListen(sess.roomId, rs=>{
+    if(!rs) return;
+    if(rs.status==="gameover"){ if(gameUnsub){gameUnsub();gameUnsub=null;} screenGameOver(sess,rs); return; }
+    renderGame(sess, rs);
+  });
+}
+
+function renderGame(sess, rs) {
+  const { roomId, playerId } = sess;
+  const myIdx = rs.players.findIndex(p=>p.id===playerId);
+  const me = rs.players[myIdx];
+  const isMyTurn = rs.currentBidder===myIdx && !rs.mancheOver && rs.auctionCard;
+  const isFirstBid = rs.lastBidder===-1;
+
+  // header
+  const hdr=$("game-header");
+  if(hdr) hdr.innerHTML=`
+    <span class="sans gold" style="font-size:.85rem">Manche ${rs.round} · <span style="letter-spacing:.1em">${roomId}</span></span>
+    <span class="box" style="padding:.35rem .9rem;font-family:sans-serif;font-size:.9rem;margin:0">Pot : <strong class="goldL">${rs.pot} 🪙</strong></span>
+  `;
+
+  // players
+  const pg=$("players-grid");
+  if(pg) pg.innerHTML = rs.players.map((p,i)=>{
+    const isActive = !rs.mancheOver && rs.currentBidder===i && rs.auctionCard;
+    const isMe = p.id===playerId;
+    const borderColor = isActive?"var(--gold)":isMe?"#4c1d9588":"var(--bord)";
+    const handHtml = p.hand.map(card=>cardVis(card, !rs.mancheOver&&!isMe, true)).join("")
+      + Array.from({length:Math.max(0,3-p.hand.length)}).map(()=>emptySlot(true)).join("");
+    let comboHtml="";
+    if(rs.mancheOver && rs.roundResults){
+      const res = rs.roundResults.find(r=>r.id===p.id);
+      if(res) comboHtml = res.combo
+        ? `<div style="margin-top:.35rem">${pillCombo(res.combo, res.eliminated)}</div>`
+        : `<div class="muted" style="margin-top:.35rem;font-size:.7rem">${p.hand.reduce((s,c)=>s+c.value,0)} pts</div>`;
+    }
+    return `
+      <div class="player-box ${isMe?"mine":""} ${isActive?"active":""}" style="border-color:${borderColor}">
+        <div class="row-sb">
+          <span style="font-weight:600;font-size:.9rem;color:${isMe?"var(--goldL)":"var(--text)"}">${p.name}${isMe?" (toi)":""}</span>
+          <span class="sans gold" style="font-size:.8rem">${p.coins}🪙</span>
+        </div>
+        <div class="player-hand">${handHtml}</div>
+        ${comboHtml}
+        ${isActive&&!rs.mancheOver?`<div style="margin-top:.3rem"><span class="tag-active">● Son tour</span></div>`:""}
+      </div>`;
+  }).join("");
+
+  // auction
+  const aa=$("auction-area");
+  if(aa){
+    if(!rs.mancheOver){
+      if(rs.auctionCard){
+        const bidSection = isMyTurn ? `
+          <div class="gold sans" style="font-weight:600;margin-bottom:.65rem">C'est ton tour, ${me?.name} (${me?.coins} 🪙 disponibles)</div>
+          <div class="row" id="bid-row">
+            ${isFirstBid
+              ? `<button class="btn-secondary" id="btn-pass">Passer</button>
+                 <input type="number" id="bid-inp" min="1" placeholder="Mise…" style="width:100px" />
+                 <button class="btn-primary" id="btn-open">Ouvrir</button>`
+              : `<button class="btn-danger" id="btn-fold">Abandonner</button>
+                 <input type="number" id="bid-inp" min="${rs.currentBid+1}" placeholder="> ${rs.currentBid}" style="width:100px" />
+                 <button class="btn-primary" id="btn-raise">Surenchérir</button>`}
+          </div>` :
+          `<p class="muted">En attente de <strong style="color:var(--text)">${rs.players[rs.currentBidder]?.name}</strong>…</p>`;
+        aa.innerHTML=`
+          <div class="box ${isMyTurn?"accent":""}">
+            <div class="row mb1">
+              ${cardVis(rs.auctionCard, false, false, isMyTurn)}
+              <div>
+                <div style="font-size:1.05rem;font-weight:600;margin-bottom:.25rem">${rs.auctionCard.name}</div>
+                <div class="muted">Valeur : ${rs.auctionCard.value}</div>
+                ${rs.currentBid>0?`<div class="gold sans" style="font-size:.82rem;margin-top:.2rem">Enchère : ${rs.currentBid} 🪙 par ${rs.players[rs.lastBidder]?.name}</div>`:""}
+              </div>
+            </div>
+            ${bidSection}
+          </div>`;
+        if(isMyTurn){
+          if(isFirstBid){
+            on("btn-pass","click",()=>mutateGame(sess.roomId,doPass));
+            on("btn-open","click",()=>{ const a=parseInt($("bid-inp")?.value); if(!isNaN(a)&&a>0) mutateGame(sess.roomId,s=>doBid(s,a)); });
+          } else {
+            on("btn-fold","click",()=>mutateGame(sess.roomId,doFold));
+            on("btn-raise","click",()=>{ const a=parseInt($("bid-inp")?.value); if(!isNaN(a)&&a>rs.currentBid) mutateGame(sess.roomId,s=>doBid(s,a)); });
+          }
+        }
+      } else {
+        aa.innerHTML=`<div class="box"><p class="muted" style="text-align:center">Préparation…</p></div>`;
+      }
+    } else aa.innerHTML="";
+  }
+
+  // manche over
+  const moa=$("manche-over-area");
+  if(moa){
+    if(rs.mancheOver && rs.status!=="gameover"){
+      const isWinner = rs.winner?.id===playerId;
+      const isHost = rs.players[0]?.id===playerId;
+      moa.innerHTML=`
+        <div class="win-box">
+          <div class="win-title">${rs.drawPlayers?"⚔️ Égalité !":isWinner?"🏆 Tu remportes la manche !":rs.winner?`🏆 ${rs.winner.name} remporte la manche !`:""}</div>
+          <div class="muted mb1">${rs.winReason}</div>
+          ${isHost
+            ? `<button class="btn-primary" id="btn-next">Manche suivante →</button>`
+            : `<p class="muted">En attente que l'hôte lance la manche suivante…</p>`}
+        </div>`;
+      if(isHost) on("btn-next","click",()=>mutateGame(sess.roomId,doNextRound));
+    } else moa.innerHTML="";
+  }
+
+  // log
+  const logEl=$("log");
+  if(logEl){
+    logEl.innerHTML=(rs.auctionLog||[]).map(line=>
+      `<div class="${line.startsWith("──")?"log-sep":"log-line"}">${line}</div>`
+    ).join("");
+    logEl.scrollTop=logEl.scrollHeight;
+  }
+
+  // scores
+  const sc=$("scores-box");
+  if(sc) sc.innerHTML=`
+    <div class="muted mb05" style="font-size:.75rem">Scores (manches gagnées)</div>
+    <div class="scores-row">
+      ${(rs.allScores||[]).map(s=>`<span class="sans" style="font-size:.88rem"><span class="muted">${s.name} : </span><strong class="goldL">${s.total}</strong></span>`).join("")}
+    </div>`;
+}
+
+// ── game mutations ───────────────────────────────────────────
+async function mutateGame(roomId, fn) {
+  if(gameActing) return;
+  gameActing=true;
+  try {
+    const fresh = await dbGet(roomId);
+    if(!fresh){gameActing=false;return;}
+    const next = fn(fresh);
+    await dbSet(roomId, next);
+  } finally { gameActing=false; }
+}
+
+function afterCard(s, newPlayers, newPot, log) {
+  const allFull = newPlayers.filter(p=>p.hand.length<3).length===0;
+  if(allFull){
+    const result = resolveManche(newPlayers);
+    let fp=newPlayers, fp2=newPot;
+    if(result.draw){
+      const share=Math.floor(newPot/result.draw.length);
+      fp=newPlayers.map(p=>result.draw.find(d=>d.id===p.id)?{...p,coins:p.coins+share}:p);
+      fp2=0;
+    } else if(result.winner){
+      fp=newPlayers.map(p=>p.id===result.winner.id?{...p,coins:p.coins+newPot}:p);
+      fp2=0;
+    }
+    const allScores=(s.allScores||[]).map(sc=>result.winner&&sc.id===result.winner.id?{...sc,total:sc.total+1}:sc);
+    const bust=fp.some(p=>p.coins<=0);
+    return {...s,players:fp,pot:fp2,auctionCard:null,
+      mancheOver:true,winner:result.winner||null,winReason:result.reason,
+      drawPlayers:result.draw||null,roundResults:result.results,allScores,
+      auctionLog:[...log,"── Fin de manche ──",result.reason],
+      status:bust?"gameover":"playing"};
+  }
+  const card=s.deck[0]; const deck=s.deck.slice(1);
+  const numP=newPlayers.length;
+  const priorityIdx=(s.auctionPriority+s.auctionPhase)%numP;
+  return {...s,players:newPlayers,pot:newPot,deck,
+    auctionCard:card,auctionPhase:s.auctionPhase+1,
+    currentBid:0,currentBidder:priorityIdx,lastBidder:-1,
+    auctionLog:[...log,`── Carte révélée : ${card.name} (${card.symbol}) — Priorité : ${newPlayers[priorityIdx].name}`]};
+}
+
+function doPass(s){
+  const {players,auctionCard,currentBidder}=s;
+  const eligible=players.map((p,i)=>({p,i})).filter(({p,i})=>i!==currentBidder&&p.hand.length<3);
+  if(!eligible.length) return s;
+  const oi=eligible[0].i;
+  const np=players.map((p,i)=>i===oi?{...p,hand:[...p.hand,auctionCard]}:p);
+  return afterCard(s,np,s.pot,[...s.auctionLog,`${players[currentBidder].name} passe → ${players[oi].name} récupère la carte.`]);
+}
+function doBid(s,amount){
+  const {players,currentBidder,currentBid}=s;
+  if(isNaN(amount)||amount<=currentBid) return s;
+  const eligible=players.map((p,i)=>({p,i})).filter(({p,i})=>i!==currentBidder&&p.hand.length<3);
+  const nextIdx=eligible.length>0?eligible[0].i:(currentBidder+1)%players.length;
+  return {...s,currentBid:amount,lastBidder:currentBidder,currentBidder:nextIdx,
+    auctionLog:[...s.auctionLog,`${players[currentBidder].name} propose ${amount} 🪙`]};
+}
+function doFold(s){
+  const {players,auctionCard,lastBidder,currentBid,currentBidder}=s;
+  const np=players.map((p,i)=>i===lastBidder?{...p,hand:[...p.hand,auctionCard],coins:p.coins-currentBid}:p);
+  return afterCard(s,np,s.pot+currentBid,[...s.auctionLog,`${players[currentBidder].name} abandonne. ${players[lastBidder].name} remporte la carte pour ${currentBid} 🪙.`]);
+}
+function doNextRound(s){
+  const numP=s.players.length;
+  const round=s.round+1;
+  const bigBlindIdx=(s.auctionPriority+1)%numP;
+  const sb=Math.max(1,Math.floor(s.budget*.02));
+  const bb=sb*2;
+  let pot=0;
+  const allCards=shuffle([...CARDS]);
+  const dealt=allCards.slice(0,numP);
+  const deckRaw=allCards.slice(numP);
+  const players=s.players.map((p,i)=>{
+    const pay=i===bigBlindIdx?bb:sb;
+    pot+=Math.min(pay,p.coins);
+    return {...p,coins:Math.max(0,p.coins-pay),hand:[dealt[i]]};
+  });
+  const card=deckRaw[0]; const deck=deckRaw.slice(1);
+  return {...s,round,players,pot,deck,
+    auctionCard:card,auctionPhase:1,auctionPriority:bigBlindIdx,
+    currentBid:0,currentBidder:bigBlindIdx,lastBidder:-1,
+    mancheOver:false,winner:null,winReason:"",drawPlayers:null,roundResults:null,
+    auctionLog:[
+      `── Manche ${round} — Grosse blinde : ${players[bigBlindIdx].name} (${bb} 🪙). Petites : ${sb} 🪙.`,
+      `Pot : ${pot} 🪙.`,
+      `── Carte révélée : ${card.name} (${card.symbol}) — Priorité : ${players[bigBlindIdx].name}`
+    ]};
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SCREEN: GAME OVER
+// ═══════════════════════════════════════════════════════════════
+function screenGameOver(sess, rs) {
+  const sorted  = [...(rs.allScores||[])].sort((a,b)=>b.total-a.total);
+  const richest = [...rs.players].sort((a,b)=>b.coins-a.coins);
+  render(`
+    <div style="background:#1a0a00;border:1px solid var(--gold);border-radius:12px;padding:2rem;text-align:center;margin-bottom:1.5rem">
+      <div style="font-size:2.5rem;margin-bottom:.5rem">👑</div>
+      <h2 class="goldL" style="margin-bottom:.4rem">Fin de partie</h2>
+      <p class="muted">Un joueur ne peut plus payer ses blindes.</p>
+    </div>
+    <div class="two-col mb1">
+      <div class="box">
+        <h3 class="gold sans mt0" style="font-size:.95rem;margin-bottom:.75rem">Manches gagnées</h3>
+        ${sorted.map((sc,i)=>`
+          <div class="row-sb" style="padding:3px 0;font-family:sans-serif;font-size:.88rem">
+            <span style="color:${i===0?"var(--goldL)":"var(--text)"}">${i===0?"🏆 ":""}${sc.name}</span>
+            <strong class="goldL">${sc.total}</strong>
+          </div>`).join("")}
+      </div>
+      <div class="box">
+        <h3 class="gold sans mt0" style="font-size:.95rem;margin-bottom:.75rem">Pièces restantes</h3>
+        ${richest.map((p,i)=>`
+          <div class="row-sb" style="padding:3px 0;font-family:sans-serif;font-size:.88rem">
+            <span style="color:${i===0?"var(--goldL)":"var(--text)"}">${i===0?"💰 ":""}${p.name}</span>
+            <strong class="gold">${p.coins}🪙</strong>
+          </div>`).join("")}
+      </div>
+    </div>
+    <div style="text-align:center">
+      <button class="btn-primary" id="btn-restart">Nouvelle partie</button>
+    </div>
+  `);
+  on("btn-restart","click",()=>{ clearSession(); screenLobby(); });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════════════════
+async function boot() {
+  const sess = loadSession();
+  if(sess){
+    const rs = await dbGet(sess.roomId);
+    if(rs){
+      if(rs.status==="lobby")   { screenWaiting(sess); return; }
+      if(rs.status==="playing") { screenGame(sess,rs); return; }
+      if(rs.status==="gameover"){ screenGameOver(sess,rs); return; }
+    }
+    clearSession();
+  }
+  screenLobby();
+}
+
+boot();
+</script>
+</body>
+</html>

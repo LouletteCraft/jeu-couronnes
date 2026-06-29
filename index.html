@@ -139,13 +139,13 @@ function dbListen(roomId,cb)       { const r=ref(db,`rooms/${roomId}`); onValue(
 // DONNÉES DU JEU
 // ═══════════════════════════════════════════════
 const CARDS = [
-  {id:7,name:"Le Souverain d'Ébène", symbol:"VII", value:7},
-  {id:6,name:"La Dame d'Ivoire",      symbol:"VI",  value:6},
-  {id:5,name:"Le Chevalier d'Acier",  symbol:"V",   value:5},
-  {id:4,name:"L'Alchimiste d'Or",     symbol:"IV",  value:4},
-  {id:3,name:"Le Prophète Voilé",     symbol:"III", value:3},
-  {id:2,name:"Le Masque de Velours",  symbol:"II",  value:2},
-  {id:1,name:"Le Fou Écarlate",       symbol:"I",   value:1},
+  {id:7,name:"Le Souverain d'Ébène", symbol:"👑", value:7},
+  {id:6,name:"La Dame d'Ivoire",      symbol:"👗", value:6},
+  {id:5,name:"Le Chevalier d'Acier",  symbol:"⚔️", value:5},
+  {id:4,name:"L'Alchimiste d'Or",     symbol:"🧪", value:4},
+  {id:3,name:"Le Prophète Voilé",     symbol:"🔮", value:3},
+  {id:2,name:"Le Masque de Velours",  symbol:"🎭", value:2},
+  {id:1,name:"Le Fou Écarlate",       symbol:"🕺", value:1},
 ];
 
 // Pour 3-4 joueurs : double deck (2 exemplaires de chaque carte)
@@ -269,12 +269,10 @@ function renderCombosRef(){
           ${combos.map(c=>`
             <div class="combo-card ${c.type}">
               <div class="row mb05">
-                <span class="muted" style="font-size:.75rem;font-weight:700">#${c.id}</span>
                 <span class="goldL" style="font-size:.88rem">${c.name}</span>
                 ${pillType(c.type)}
               </div>
               <div class="combo-cards">${c.cards.map(cid=>{const card=CARDS.find(x=>x.id===cid);return`<span class="combo-ctag">${card.symbol}</span>`;}).join("")}</div>
-              <div class="muted" style="font-size:.72rem;font-style:italic">"${c.quote}"</div>
               ${c.effect?`<div style="color:#f87171;font-size:.7rem;font-family:sans-serif;margin-top:.25rem">⚡ ${c.effect}</div>`:""}
             </div>`).join("")}
         </div>

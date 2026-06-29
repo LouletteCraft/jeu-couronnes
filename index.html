@@ -268,7 +268,8 @@ function renderCombosRef(myCardIds=[]){
   // est un sous-ensemble des cartes de la combo (toutes mes cartes sont dans la combo).
   function isPossible(combo) {
     if(myCardIds.length===0) return true;
-    return myCardIds.every(id => combo.cards.includes(id));
+    const comboIds=combo.cards.map(Number);
+    return myCardIds.every(id => comboIds.includes(Number(id)));
   }
   const groups=[
     {label:"👑 Royales",   types:["royal"]},
@@ -283,10 +284,11 @@ function renderCombosRef(myCardIds=[]){
         <div class="combos-grid">
           ${combos.map(c=>{
             const possible=isPossible(c);
-            const opacity=possible?"1":"0.28";
-            const filter=possible?"none":"grayscale(1)";
+            const cardStyle=possible
+              ? ""
+              : "opacity:0.35;filter:grayscale(1);border:2px solid #dc2626;background:#1a0505;";
             return `
-            <div class="combo-card ${c.type}" style="opacity:${opacity};filter:${filter};transition:opacity .3s,filter .3s,border-color .3s;${!possible?"border-color:#7f1d1d;border-width:2px;":""}">
+            <div class="combo-card ${c.type}" style="${cardStyle}transition:opacity .3s,filter .3s,border-color .3s,background .3s">
               <div class="row mb05">
                 <span class="${possible?"goldL":"muted"}" style="font-size:.88rem">${c.name}</span>
                 ${pillType(c.type)}
@@ -660,10 +662,12 @@ function renderGame(sess,rs){
       ${(rs.allScores||[]).map(s=>`<span class="sans" style="font-size:.88rem"><span class="muted">${s.name} : </span><strong class="goldL">${s.total}</strong></span>`).join("")}
     </div>`;
 
-  // Mise à jour aide-mémoire avec la main du joueur (si ouverte ou pas)
+  // Mise à jour aide-mémoire avec la main du joueur
   const cr3=$("combos-ref3");
   if(cr3){
-    const myCardIds=(me?.hand||[]).map(c=>c.id);
+    const myHand=me?.hand||[];
+    // Normalise les ids (double deck: id toujours 1-7)
+    const myCardIds=myHand.map(c=>Number(c.id));
     cr3.innerHTML=renderCombosRef(myCardIds);
   }
 

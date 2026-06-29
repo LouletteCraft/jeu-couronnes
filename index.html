@@ -286,7 +286,7 @@ function renderCombosRef(myCardIds=[]){
             const opacity=possible?"1":"0.28";
             const filter=possible?"none":"grayscale(1)";
             return `
-            <div class="combo-card ${c.type}" style="opacity:${opacity};filter:${filter};transition:opacity .3s,filter .3s">
+            <div class="combo-card ${c.type}" style="opacity:${opacity};filter:${filter};transition:opacity .3s,filter .3s,border-color .3s;${!possible?"border-color:#7f1d1d;border-width:2px;":""}">
               <div class="row mb05">
                 <span class="${possible?"goldL":"muted"}" style="font-size:.88rem">${c.name}</span>
                 ${pillType(c.type)}
@@ -294,7 +294,7 @@ function renderCombosRef(myCardIds=[]){
               <div class="combo-cards">${c.cards.map(cid=>{
                 const card=CARDS.find(x=>x.id===cid);
                 const inHand=myCardIds.includes(cid);
-                return `<span class="combo-ctag" style="${inHand?"background:#2a4a2a;border:1px solid #22c55e;color:#86efac":""}">${card.symbol}</span>`;
+                return `<span class="combo-ctag" style="font-size:1.1rem;padding:3px 7px;${inHand?"background:#2a4a2a;border:1px solid #22c55e;color:#86efac":""}">${card.symbol}</span>`;
               }).join("")}</div>
               ${c.effect?`<div style="color:#f87171;font-size:.7rem;font-family:sans-serif;margin-top:.25rem">⚡ ${c.effect}</div>`:""}
             </div>`;

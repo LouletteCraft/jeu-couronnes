@@ -288,7 +288,7 @@ function cardVis(card,hidden=false,sm=false,glow=false,burned=false){
   const cls=`crd ${sm?"sm":"lg"} ${hidden?"hidden":""} ${glow?"glow":""} ${burned?"burned":""}`;
   if(hidden) return `<div class="${cls}"><span class="hidden-sym">✦</span></div>`;
   return `<div class="${cls}">
-    <span class="sym" style="font-size:${sm?"1.6rem":"2.2rem"}">${card.symbol}</span>
+    <span class="sym" style="font-size:${sm?"1.6rem":"2.2rem"};display:flex;align-items:center;gap:4px">${card.symbol}<span style="font-size:${sm?"1rem":"1.3rem"};color:var(--goldL);font-weight:700">${card.value}</span></span>
     <span class="cname" style="font-size:${sm?".42rem":".58rem"};margin-top:2px">${card.name}</span>
   </div>`;
 }

@@ -201,14 +201,14 @@ const COMBINATIONS = [
   {id:2,  name:"Le Pacte de la Couronne",  type:"royal",   cards:[2,6,7], rank:2,  quote:"Même les intrigues servent la Couronne lorsque le royaume est en péril."},
   {id:3,  name:"L'Oracle du Trône",        type:"royal",   cards:[2,3,7], rank:3,  quote:"Le souverain règne autant par les prophéties que par la force."},
   // Classiques (4-11)
-  {id:4,  name:"Le Savoir Ultime",         type:"classic", cards:[3,5,6], rank:4,  quote:"Le savoir ultime est toujours proche de la folie."},
+  {id:4,  name:"La Garde du Royaume",      type:"classic", cards:[1,3,4], rank:4,  quote:"Le royaume ne survit que lorsque la sagesse maîtrise le chaos."},
   {id:5,  name:"Le Cercle des Conseillers",type:"classic", cards:[2,4,5], rank:5,  quote:"Le royaume prospère lorsque la force, le savoir et la ruse s'accordent."},
-  {id:6,  name:"Le Destin Voilé",          type:"classic", cards:[1,3,7], rank:6,  quote:"Le destin des rois naît souvent des actes des insensés."},
+  {id:6,  name:"Le Savoir Ultime",         type:"classic", cards:[3,5,6], rank:6,  quote:"Le savoir ultime est toujours proche de la folie."},
   {id:7,  name:"Les Arcanes d'Or",         type:"classic", cards:[3,4,6], rank:7,  quote:"La connaissance éclaire le royaume, mais exige toujours un prix."},
   {id:8,  name:"Le Grand Œuvre",           type:"classic", cards:[1,5,6], rank:8,  quote:"Le sacrifice transforme le chaos en grandeur."},
   {id:9,  name:"L'Héritage d'Ivoire",      type:"classic", cards:[4,5,7], rank:9,  quote:"Le royaume se construit par l'alliance de la force, du savoir et du pouvoir."},
   {id:10, name:"Le Conseil des Arcanes",   type:"classic", cards:[2,3,5], rank:10, quote:"Les vérités les plus dangereuses naissent dans les conseils les plus secrets."},
-  {id:11, name:"La Garde du Royaume",      type:"classic", cards:[1,3,4], rank:11, quote:"Le royaume ne survit que lorsque la sagesse maîtrise le chaos."},
+  {id:11, name:"Le Destin Voilé",          type:"classic", cards:[1,3,7], rank:11, quote:"Le destin des rois naît souvent des actes des insensés."},
   // Némésis (12-14) — annulent toutes les royales
   {id:12, name:"L'Alliance Écarlate",      type:"nemesis", cards:[1,5,7], rank:12, quote:"Le pouvoir succombe lorsque la guerre marche aux côtés de la folie.",       effect:"Annule toutes les combinaisons Royales."},
   {id:13, name:"Le Pacte des Damnés",      type:"nemesis", cards:[1,2,6], rank:13, quote:"Les masques tombent et la Couronne se condamne elle-même.",                  effect:"Annule toutes les combinaisons Royales."},
@@ -373,15 +373,6 @@ function screenLobby(err=""){
       <label class="lbl">Manches gagnantes (premier à ce score remporte la partie)</label>
       <div class="row mb1">${[5,10,15,20].map(n=>`<button class="btn-secondary rbtn" data-r="${n}">${n}</button>`).join("")}</div>
 
-      <label class="lbl">Mise de départ</label>
-      <div class="row mb05">
-        ${[50,100,200,500].map(v=>`<button class="btn-secondary bbtn" data-v="${v}">${v} 🪙</button>`).join("")}
-        <button class="btn-secondary" id="btn-custom-budget-tog">Personnalisée…</button>
-      </div>
-      <div class="hidden mb1" id="custom-budget-row">
-        <input type="number" id="custom-budget-inp" min="1" placeholder="Montant en pièces" />
-      </div>
-
       <label class="lbl">Visibilité</label>
       <div class="row mb1">
         <button class="btn-primary size-btn vbtn" data-v="private" style="min-width:120px">🔒 Privée (code)</button>
@@ -423,27 +414,13 @@ function screenLobby(err=""){
     <div id="combos-ref" class="hidden">${renderCombosRef()}</div>
   `);
 
-  let selN=2,selB=100,selR=10,selVis="private",customBudget=null;
+  let selN=2,selR=10,selVis="private";
 
   on("btn-create","click",()=>{$("create-form").classList.toggle("hidden");$("join-form").classList.add("hidden");});
   on("btn-join-tog","click",()=>{$("join-form").classList.toggle("hidden");$("create-form").classList.add("hidden");});
 
   document.querySelectorAll(".nbtn").forEach(b=>{b.addEventListener("click",()=>{selN=+b.dataset.n;document.querySelectorAll(".nbtn").forEach(x=>x.className="btn-secondary size-btn nbtn");b.className="btn-primary size-btn nbtn";});});
   document.querySelectorAll(".rbtn").forEach(b=>{b.addEventListener("click",()=>{selR=+b.dataset.r;document.querySelectorAll(".rbtn").forEach(x=>x.className="btn-secondary rbtn");b.className="btn-primary rbtn";});});
-  document.querySelectorAll(".bbtn").forEach(b=>{b.addEventListener("click",()=>{
-    selB=+b.dataset.v; customBudget=null;
-    $("custom-budget-row").classList.add("hidden");
-    document.querySelectorAll(".bbtn").forEach(x=>x.className="btn-secondary bbtn");
-    b.className="btn-primary bbtn";
-  });});
-  on("btn-custom-budget-tog","click",()=>{
-    $("custom-budget-row").classList.toggle("hidden");
-    document.querySelectorAll(".bbtn").forEach(x=>x.className="btn-secondary bbtn");
-  });
-  on("custom-budget-inp","input",()=>{
-    const v=parseInt($("custom-budget-inp").value);
-    if(!isNaN(v)&&v>0){ customBudget=v; selB=v; }
-  });
   document.querySelectorAll(".vbtn").forEach(b=>{b.addEventListener("click",()=>{
     selVis=b.dataset.v;
     document.querySelectorAll(".vbtn").forEach(x=>x.className="btn-secondary size-btn vbtn");
@@ -453,13 +430,12 @@ function screenLobby(err=""){
   on("btn-do-create","click",async()=>{
     const name=$("c-name").value.trim();
     if(!name) return screenLobby("Entre ton nom.");
-    if(customBudget!==null && (isNaN(customBudget)||customBudget<=0)) return screenLobby("Mise personnalisée invalide.");
     const roomId=Math.random().toString(36).slice(2,8).toUpperCase();
     const playerId=crypto.randomUUID();
     await dbSet(roomId,{
-      roomId,status:"lobby",budget:selB,maxPlayers:selN,targetRounds:selR,isPublic:selVis==="public",round:1,allScores:[],
-      players:[{id:playerId,name,coins:selB,hand:[]}],
-      deck:[],pot:0,auctionPhase:0,auctionPriority:0,burnedCards:[],
+      roomId,status:"lobby",maxPlayers:selN,targetRounds:selR,isPublic:selVis==="public",round:1,allScores:[],
+      players:[{id:playerId,name,coins:20,hand:[]}],
+      deck:[],pot1:0,pot2:0,auctionPhase:0,tokenIdx:0,burnedCards:[],
       auctionCard:null,currentBid:0,currentBidder:-1,lastBidder:-1,
       auctionLog:[],mancheOver:false,winner:null,winReason:"",drawPlayers:null,roundResults:null,
       createdAt:Date.now(),
@@ -478,7 +454,7 @@ function screenLobby(err=""){
     if(rs.status!=="lobby") return screenLobby("La partie est déjà commencée.");
     if(rs.players.length>=rs.maxPlayers) return screenLobby("Salle pleine.");
     const playerId=crypto.randomUUID();
-    rs.players.push({id:playerId,name,coins:rs.budget,hand:[]});
+    rs.players.push({id:playerId,name,coins:20,hand:[]});
     await dbSet(code,rs);
     saveSession({roomId:code,playerId,playerName:name});
     screenWaiting({roomId:code,playerId,playerName:name});
@@ -497,7 +473,7 @@ function screenLobby(err=""){
     if(!rs||rs.status!=="lobby"){$("pj-err").innerHTML=`<p class="error">Cette partie n'est plus disponible.</p>`;return;}
     if(rs.players.length>=rs.maxPlayers){$("pj-err").innerHTML=`<p class="error">Salle pleine.</p>`;return;}
     const playerId=crypto.randomUUID();
-    rs.players.push({id:playerId,name,coins:rs.budget,hand:[]});
+    rs.players.push({id:playerId,name,coins:20,hand:[]});
     await dbSet(targetRoomForJoin,rs);
     saveSession({roomId:targetRoomForJoin,playerId,playerName:name});
     screenWaiting({roomId:targetRoomForJoin,playerId,playerName:name});
@@ -579,7 +555,7 @@ function screenWaiting(sess){
     const pl=$("waiting-players");const ac=$("waiting-action");
     if(!pl||!ac) return;
     pl.innerHTML=`
-      <div class="muted mb05">${rs.players.length}/${rs.maxPlayers} joueurs · Mise : ${rs.budget} 🪙 · Objectif : ${rs.targetRounds||10} manches gagnées${rs.maxPlayers>2?" · Double deck (14 cartes)":""}${rs.isPublic?" · 🌐 Publique":" · 🔒 Privée"}</div>
+      <div class="muted mb05">${rs.players.length}/${rs.maxPlayers} joueurs · 20 jetons chacun · Objectif : ${rs.targetRounds||10} manches gagnées${rs.maxPlayers>2?" · Double deck (14 cartes)":""}${rs.isPublic?" · 🌐 Publique":" · 🔒 Privée"}</div>
       ${rs.players.map((p,i)=>`<div class="row" style="padding:4px 0;font-family:sans-serif;font-size:.9rem">
         <span class="tag-active">●</span>
         <span style="color:${p.id===sess.playerId?"var(--goldL)":"var(--text)"}">${p.name}${p.id===sess.playerId?" (toi)":""}${i===0?" 👑":""}</span>
@@ -594,11 +570,8 @@ function screenWaiting(sess){
 // ═══════════════════════════════════════════════
 // DÉMARRAGE D'UNE MANCHE (réutilisé pour manche 1 et suivantes)
 // ═══════════════════════════════════════════════
-function buildRoundState(rs, roundNumber, bigBlindIdx) {
+function buildRoundState(rs, roundNumber, tokenIdx) {
   const numP=rs.players.length;
-  const sb=Math.max(1,Math.floor(rs.budget*.02));
-  const bb=sb*2;
-  let pot=0;
 
   // Deck : simple (2j) ou double (3-4j)
   let allCards=shuffle(buildDeck(numP).map(c=>({...c})));
@@ -608,34 +581,41 @@ function buildRoundState(rs, roundNumber, bigBlindIdx) {
   let deck=[...allCards];
   let burnedCards=[];
 
+  // Jetons fixes : chaque joueur récupère 20 jetons à chaque manche
+  // Blinde commune fixe (2 jetons) versée par tous avant de regarder sa carte — base du pot 1
+  const blind=2;
+  let basePot=0;
   const players=rs.players.map((p,i)=>{
-    const pay=i===bigBlindIdx?bb:sb;
-    pot+=Math.min(pay,p.coins);
-    return {...p,coins:Math.max(0,p.coins-pay),hand:[dealt[i]]};
+    basePot+=blind;
+    return {...p,coins:20-blind,hand:[dealt[i]]};
   });
 
-  // À 3 joueurs : brûler 1 carte face visible dès le départ
+  // À 3 joueurs : le croupier met 2 cartes hors jeu face visible dès le départ
   if(numP===3){
-    const burned=deck.shift();
-    burnedCards.push(burned);
+    burnedCards.push(deck.shift());
+    burnedCards.push(deck.shift());
   }
 
-  const firstCard=deck.shift();
   const log=[
-    `── Manche ${roundNumber} — Grosse blinde : ${players[bigBlindIdx].name} (${bb} 🪙). Petites : ${sb} 🪙.`,
-    `Pot : ${pot} 🪙.${numP===3?" (3 joueurs : 1 carte brûlée face visible)":""}`,
-    `── Carte révélée : ${firstCard.name} (${firstCard.symbol}) — Priorité : ${players[bigBlindIdx].name}`,
-  ];
+    `── Manche ${roundNumber} — Chaque joueur reçoit 20 jetons et une carte cachée, et verse une blinde commune de ${blind} 🪙.`,
+    numP===3?`🔥 Le croupier met 2 cartes hors jeu face visible.`:null,
+    `Premier tour de mise — ${players[tokenIdx].name} a le token.`,
+  ].filter(Boolean);
 
   return {
     ...rs,
     status:"playing",
     round:roundNumber,
-    players,pot,deck,burnedCards,
-    auctionCard:firstCard,
-    auctionPhase:1,
-    auctionPriority:bigBlindIdx,
-    currentBid:0,currentBidder:bigBlindIdx,lastBidder:-1,
+    players,deck,burnedCards,
+    pot1:basePot,pot2:0,
+    foldedRound1:[],foldedRound2:[],
+    bettingRound:1,
+    tokenIdx,
+    stakeAmount:0,stakeBy:-1,respondedBy:[],bettingResolved:false,
+    auctionCard:null,
+    auctionPhase:0,
+    auctionPriority:tokenIdx,
+    currentBid:0,currentBidder:-1,lastBidder:-1,
     mancheOver:false,winner:null,winReason:"",drawPlayers:null,roundResults:null,
     auctionLog:log,
     allScores:roundNumber===1?rs.players.map(p=>({id:p.id,name:p.name,total:0})):rs.allScores,
@@ -646,7 +626,8 @@ function buildRoundState(rs, roundNumber, bigBlindIdx) {
 async function doStartGame(roomId){
   const rs=await dbGet(roomId);
   if(!rs||rs.players.length<2) return;
-  await dbSet(roomId,buildRoundState(rs,1,0));
+  const built=buildRoundState(rs,1,0);
+  await dbSet(roomId,startBettingTurn(built));
 }
 
 // ═══════════════════════════════════════════════
@@ -699,20 +680,24 @@ function renderGame(sess,rs){
   const {roomId,playerId}=sess;
   const myIdx=rs.players.findIndex(p=>p.id===playerId);
   const me=rs.players[myIdx];
-  const isMyTurn=rs.currentBidder===myIdx&&!rs.mancheOver&&rs.auctionCard;
+  const isBetting=!rs.bettingResolved&&!rs.auctionCard&&!rs.mancheOver;
+  const isMyBetTurn=isBetting&&rs.currentBidder===myIdx;
+  const isMyAuctionTurn=!isBetting&&rs.currentBidder===myIdx&&!rs.mancheOver&&rs.auctionCard;
   const isFirstBid=rs.lastBidder===-1;
   const numP=rs.players.length;
+  const foldKey=rs.bettingRound===2?"foldedRound2":"foldedRound1";
+  const folded=rs[foldKey]||[];
+  const iAmFolded=folded.includes(playerId);
 
-  // Header : pot + score à côté, en haut à droite
+  // Header : pots + score, en haut à droite
   const hdr=$("game-header");
   if(hdr){
-    const myScore=(rs.allScores||[]).find(s=>s.id===playerId);
     const scoresHtml=(rs.allScores||[]).map(s=>`<span style="margin-right:.6rem"><span class="muted">${s.name}:</span> <strong class="goldL">${s.total}</strong></span>`).join("");
     hdr.innerHTML=`
       <span class="sans gold" style="font-size:.85rem">Manche ${rs.round} · <span style="letter-spacing:.1em">${roomId}</span></span>
       <div class="row" style="gap:.6rem">
         <span class="box sans" style="padding:.35rem .9rem;font-size:.85rem;margin:0">${scoresHtml||"<span class='muted'>Scores : 0 partout</span>"}</span>
-        <span class="box" style="padding:.35rem .9rem;font-family:sans-serif;font-size:.9rem;margin:0">Pot : <strong class="goldL">${rs.pot} 🪙</strong></span>
+        <span class="box" style="padding:.35rem .9rem;font-family:sans-serif;font-size:.9rem;margin:0">Pot 1 : <strong class="goldL">${rs.pot1||0} 🪙</strong>${(rs.pot2||0)>0||rs.bettingRound===2?` · Pot 2 : <strong class="goldL">${rs.pot2||0} 🪙</strong>`:""}</span>
         <button class="btn-warn" id="btn-abandon-req" style="font-size:.78rem;padding:.35rem .8rem">⚑ Abandon</button>
       </div>`;
   }
@@ -735,9 +720,10 @@ function renderGame(sess,rs){
   if(pg){
     pg.style.gridTemplateColumns = numP>=3 ? "1fr 1fr" : "1fr";
     pg.innerHTML=rs.players.map((p,i)=>{
-    const isActive=!rs.mancheOver&&rs.currentBidder===i&&rs.auctionCard;
+    const isActive=!rs.mancheOver&&rs.currentBidder===i&&(rs.auctionCard||isBetting);
     const isMe=p.id===playerId;
     const isFull=p.hand.length>=3;
+    const isFolded=folded.includes(p.id);
     const bc=isActive?"var(--gold)":isMe?"#4c1d9588":"var(--bord)";
     const handHtml=p.hand.map(card=>cardVis(card,!rs.mancheOver&&!isMe,true)).join("")
       +Array.from({length:Math.max(0,3-p.hand.length)}).map(()=>emptySlot(true)).join("");
@@ -748,61 +734,104 @@ function renderGame(sess,rs){
         ?`<div style="margin-top:.35rem">${pillCombo(res.combo,res.eliminated)}</div>`
         :`<div class="muted" style="margin-top:.35rem;font-size:.7rem">${p.hand.reduce((s,c)=>s+c.value,0)} pts</div>`;
     }
-    return `<div class="player-box ${isMe?"mine":""} ${isActive?"active":""}" style="border-color:${bc}">
+    return `<div class="player-box ${isMe?"mine":""} ${isActive?"active":""}" style="border-color:${bc};${isFolded?"opacity:.5":""}">
       <div class="row-sb">
-        <span style="font-weight:600;font-size:.9rem;color:${isMe?"var(--goldL)":"var(--text)"}">${p.name}${isMe?" (toi)":""}</span>
+        <span style="font-weight:600;font-size:.9rem;color:${isMe?"var(--goldL)":"var(--text)"}">${p.name}${isMe?" (toi)":""}${i===rs.tokenIdx?" 🎟️":""}</span>
         <span class="sans gold" style="font-size:.8rem">${p.coins}🪙</span>
       </div>
       <div class="player-hand">${handHtml}</div>
       ${comboHtml}
+      ${isFolded?`<div style="margin-top:.3rem"><span class="tag-out">Retiré (tour ${rs.bettingRound===2&&(rs.foldedRound1||[]).includes(p.id)?1:rs.bettingRound})</span></div>`:""}
       ${isActive&&!rs.mancheOver?`<div style="margin-top:.3rem"><span class="tag-active">● Son tour</span></div>`:""}
-      ${isFull&&!rs.mancheOver?`<div style="margin-top:.3rem"><span class="tag-out">✓ Main complète</span></div>`:""}
+      ${isFull&&!rs.mancheOver&&!isFolded?`<div style="margin-top:.3rem"><span class="tag-out">✓ Main complète</span></div>`:""}
     </div>`;
     }).join("");
   }
 
-  // Auction area
+  // Zone principale : tour de mise OU enchère carte par carte
   const aa=$("auction-area");
   if(aa){
-    if(!rs.mancheOver){
-      if(rs.auctionCard){
-        const bidSection=isMyTurn?`
-          <div class="gold sans" style="font-weight:600;margin-bottom:.65rem">C'est ton tour, ${me?.name} (${me?.coins} 🪙 disponibles)</div>
-          <div class="row">
-            ${isFirstBid
-              ?`<button class="btn-secondary" id="btn-pass">Passer</button>
-                <input type="number" id="bid-inp" min="1" placeholder="Mise…" style="width:100px"/>
-                <button class="btn-primary" id="btn-open">Ouvrir</button>`
-              :`<button class="btn-danger" id="btn-fold">Abandonner</button>
-                <input type="number" id="bid-inp" min="${rs.currentBid+1}" placeholder="> ${rs.currentBid}" style="width:100px"/>
-                <button class="btn-primary" id="btn-raise">Surenchérir</button>`}
-          </div>`
-          :`<p class="muted">En attente de <strong style="color:var(--text)">${rs.players[rs.currentBidder]?.name}</strong>…</p>`;
-        aa.innerHTML=`
-          <div class="box ${isMyTurn?"accent":""}">
-            <div class="row mb1">
-              ${cardVis(rs.auctionCard,false,false,isMyTurn)}
-              <div>
-                <div style="font-size:1.05rem;font-weight:600;margin-bottom:.25rem">${rs.auctionCard.name}</div>
-                <div class="muted">Valeur : ${rs.auctionCard.value}</div>
-                ${rs.currentBid>0?`<div class="gold sans" style="font-size:.82rem;margin-top:.2rem">Enchère : ${rs.currentBid} 🪙 par ${rs.players[rs.lastBidder]?.name}</div>`:""}
-              </div>
-            </div>
-            ${bidSection}
-          </div>`;
-        if(isMyTurn){
-          if(isFirstBid){
-            on("btn-pass","click",()=>mutateGame(sess.roomId,doPass));
-            on("btn-open","click",()=>{const a=parseInt($("bid-inp")?.value);if(!isNaN(a)&&a>0)mutateGame(sess.roomId,s=>doBid(s,a));});
-          }else{
-            on("btn-fold","click",()=>mutateGame(sess.roomId,doFold));
-            on("btn-raise","click",()=>{const a=parseInt($("bid-inp")?.value);if(!isNaN(a)&&a>rs.currentBid)mutateGame(sess.roomId,s=>doBid(s,a));});
-          }
+    if(rs.mancheOver){
+      aa.innerHTML="";
+    } else if(isBetting){
+      const player=rs.players[rs.currentBidder];
+      const isOpen=rs.stakeBy===-1;
+      let actionHtml="";
+      if(isMyBetTurn){
+        if(isOpen){
+          actionHtml=`
+            <div class="row">
+              <button class="btn-secondary" id="btn-bet-check">Check (0)</button>
+              <input type="number" id="bet-inp" min="1" max="${me.coins}" placeholder="Miser…" style="width:100px"/>
+              <button class="btn-primary" id="btn-bet-open">Miser</button>
+            </div>`;
+        } else {
+          actionHtml=`
+            <div class="row">
+              <button class="btn-secondary" id="btn-bet-call">Suivre (${rs.stakeAmount} 🪙)</button>
+              <input type="number" id="bet-inp" min="${rs.stakeAmount+1}" max="${me.coins}" placeholder="> ${rs.stakeAmount}" style="width:100px"/>
+              <button class="btn-primary" id="btn-bet-raise">Relancer</button>
+              <button class="btn-danger" id="btn-bet-fold">Se retirer</button>
+            </div>`;
         }
-      }else{
-        aa.innerHTML=`<div class="box"><p class="muted" style="text-align:center">Préparation…</p></div>`;
+      } else {
+        actionHtml=`<p class="muted">En attente de <strong style="color:var(--text)">${player?.name}</strong>…</p>`;
       }
-    }else aa.innerHTML="";
+      aa.innerHTML=`
+        <div class="box ${isMyBetTurn?"accent":""}">
+          <div class="gold sans" style="font-weight:600;margin-bottom:.5rem">
+            ${rs.bettingRound===1?"Premier":"Deuxième"} tour de mise ${rs.stakeAmount>0?`— mise actuelle : ${rs.stakeAmount} 🪙`:""}
+          </div>
+          ${actionHtml}
+        </div>`;
+      if(isMyBetTurn){
+        if(isOpen){
+          on("btn-bet-check","click",()=>mutateGame(sess.roomId,s=>doBetOpen(s,0)));
+          on("btn-bet-open","click",()=>{const a=parseInt($("bet-inp")?.value);if(!isNaN(a)&&a>0)mutateGame(sess.roomId,s=>doBetOpen(s,a));});
+        } else {
+          on("btn-bet-call","click",()=>mutateGame(sess.roomId,doBetCall));
+          on("btn-bet-raise","click",()=>{const a=parseInt($("bet-inp")?.value);if(!isNaN(a)&&a>rs.stakeAmount)mutateGame(sess.roomId,s=>doBetRaise(s,a));});
+          on("btn-bet-fold","click",()=>mutateGame(sess.roomId,doBetFold));
+        }
+      }
+    } else if(rs.auctionCard){
+      const isDuel=numP===2;
+      const bidSection=isMyAuctionTurn?`
+        <div class="gold sans" style="font-weight:600;margin-bottom:.65rem">C'est ton tour, ${me?.name} (${me?.coins} 🪙 disponibles)</div>
+        <div class="row">
+          ${isFirstBid
+            ?`<button class="btn-secondary" id="btn-pass">${isDuel?"Passer":"Ne pas enchérir"}</button>
+              <input type="number" id="bid-inp" min="1" placeholder="Mise…" style="width:100px"/>
+              <button class="btn-primary" id="btn-open">${isDuel?"Ouvrir":"Enchérir"}</button>`
+            :`<button class="btn-danger" id="btn-fold">${isDuel?"Abandonner":"Abandonner l'enchère"}</button>
+              <input type="number" id="bid-inp" min="${rs.currentBid+1}" placeholder="> ${rs.currentBid}" style="width:100px"/>
+              <button class="btn-primary" id="btn-raise">Surenchérir</button>`}
+        </div>`
+        :`<p class="muted">En attente de <strong style="color:var(--text)">${rs.players[rs.currentBidder]?.name}</strong>…</p>`;
+      aa.innerHTML=`
+        <div class="box ${isMyAuctionTurn?"accent":""}">
+          <div class="row mb1">
+            ${cardVis(rs.auctionCard,false,false,isMyAuctionTurn)}
+            <div>
+              <div style="font-size:1.05rem;font-weight:600;margin-bottom:.25rem">${rs.auctionCard.name}</div>
+              <div class="muted">Valeur : ${rs.auctionCard.value}</div>
+              ${rs.currentBid>0?`<div class="gold sans" style="font-size:.82rem;margin-top:.2rem">Enchère : ${rs.currentBid} 🪙 par ${rs.players[rs.lastBidder]?.name}</div>`:""}
+            </div>
+          </div>
+          ${bidSection}
+        </div>`;
+      if(isMyAuctionTurn){
+        if(isFirstBid){
+          on("btn-pass","click",()=>mutateGame(sess.roomId,doPass));
+          on("btn-open","click",()=>{const a=parseInt($("bid-inp")?.value);if(!isNaN(a)&&a>0)mutateGame(sess.roomId,s=>doBid(s,a));});
+        }else{
+          on("btn-fold","click",()=>mutateGame(sess.roomId,doFold));
+          on("btn-raise","click",()=>{const a=parseInt($("bid-inp")?.value);if(!isNaN(a)&&a>rs.currentBid)mutateGame(sess.roomId,s=>doBid(s,a));});
+        }
+      }
+    } else {
+      aa.innerHTML=`<div class="box"><p class="muted" style="text-align:center">Préparation…</p></div>`;
+    }
   }
 
   // Manche over
@@ -813,7 +842,7 @@ function renderGame(sess,rs){
       const isHost=rs.players[0]?.id===playerId;
       moa.innerHTML=`
         <div class="win-box">
-          <div class="win-title">${rs.drawPlayers?"⚔️ Égalité !":isWinner?"🏆 Tu remportes la manche !":rs.winner?`🏆 ${rs.winner.name} remporte la manche !`:""}</div>
+          <div class="win-title">${rs.drawPlayers&&rs.drawPlayers.length>0?"⚔️ Égalité !":isWinner?"🏆 Tu remportes la manche !":rs.winner?`🏆 ${rs.winner.name} remporte la manche !`:"Manche terminée"}</div>
           <div class="muted mb1">${rs.winReason}</div>
           ${isHost
             ?`<button class="btn-primary" id="btn-next">Manche suivante →</button>`
@@ -833,12 +862,12 @@ function renderGame(sess,rs){
     logEl.scrollTop=logEl.scrollHeight;
   }
 
-  // Mise à jour aide-mémoire (toujours visible dans colonne 2, uniquement possibles, 3/ligne)
+  // Mise à jour aide-mémoire (toujours visible dans colonne 2, toutes affichées, grisées si impossibles, 3/ligne)
   const cr3=$("combos-ref3");
   if(cr3){
     const myHand=me?.hand||[];
     const myCardIds=myHand.map(c=>Number(c.id));
-    cr3.innerHTML=renderCombosRef(myCardIds,{onlyPossible:true,threeCol:true});
+    cr3.innerHTML=renderCombosRef(myCardIds,{onlyPossible:false,threeCol:true});
   }
 
   // Vote d'abandon : pop-up par-dessus tout le jeu, visible par tous (y compris l'initiateur)
@@ -894,11 +923,13 @@ function resetToLobby(s){
   return {
     ...s,
     status:"lobby",
-    players:s.players.map(p=>({...p,hand:[],coins:s.budget})),
+    players:s.players.map(p=>({...p,hand:[],coins:20})),
     abandonVotes:[],
-    deck:[],pot:0,auctionCard:null,auctionPhase:0,
+    deck:[],pot1:0,pot2:0,foldedRound1:[],foldedRound2:[],
+    auctionCard:null,auctionPhase:0,bettingRound:1,
+    stakeAmount:0,stakeBy:-1,respondedBy:[],bettingResolved:false,
     mancheOver:false,winner:null,winReason:"",drawPlayers:null,roundResults:null,
-    auctionLog:[],allScores:[],burnedCards:[],round:1,
+    auctionLog:[],allScores:[],burnedCards:[],round:1,tokenIdx:0,
   };
 }
 
@@ -925,14 +956,13 @@ function nextEligible(players,fromIdx,excludeIdx=-1){
   return -1;
 }
 function countEligible(players){return players.filter(p=>p.hand.length<3).length;}
+function activePlayers(s){return s.players.filter(p=>!s.foldedRound1.includes(p.id));}
 
 // Vérifie si à 3 joueurs il faut brûler une carte intermédiaire
-// (quand chacun vient d'obtenir sa 2e carte, avant la 3e)
 function checkMidBurn(s,newPlayers){
   if(s.players.length!==3) return {players:newPlayers,deck:s.deck,burnedCards:s.burnedCards||[],log:[]};
   const prevTwoCount=s.players.filter(p=>p.hand.length>=2).length;
   const newTwoCount=newPlayers.filter(p=>p.hand.length>=2).length;
-  // Brûler quand tous les joueurs ont exactement 2 cartes pour la première fois
   const allHadTwo = prevTwoCount < 3 && newTwoCount === 3;
   if(allHadTwo && s.deck.length>0){
     const deck=[...s.deck];
@@ -946,102 +976,422 @@ function checkMidBurn(s,newPlayers){
   return {players:newPlayers,deck:s.deck,burnedCards:s.burnedCards||[],log:[]};
 }
 
-function afterCard(s,newPlayers,newPot,log){
-  // Vérifier brûlure intermédiaire (3 joueurs, après que chacun a 2 cartes)
+// ── RÉSOLUTION FINALE (après le 2e bloc d'enchères) ──────────────────────
+function resolveBothPots(s,newPlayers,deck,burnedCards,log){
+  // Joueurs encore en jeu pour le pot 2 = ceux qui n'ont pas plié au round 2
+  const inPot2 = newPlayers.filter(p=>!(s.foldedRound2||[]).includes(p.id));
+  // Joueurs en jeu pour le pot 1 = tous sauf ceux pliés au round 1 (qui ont récupéré leur mise et ne jouent pas la manche du tout)
+  const inPot1 = newPlayers.filter(p=>!(s.foldedRound1||[]).includes(p.id));
+
+  let fp=newPlayers;
+  let logLines=[...log,"── Révélation et résolution ──"];
+  let winnerOverall=null, reasonOverall="";
+
+  // Résolution Pot 1 (tous les joueurs encore en jeu, y compris ceux retirés au round 2)
+  let result1=null;
+  if(s.pot1>0 && inPot1.length>0){
+    result1=resolveManche(inPot1);
+    if(result1.draw){
+      const share=Math.floor(s.pot1/result1.draw.length);
+      fp=fp.map(p=>result1.draw.find(d=>d.id===p.id)?{...p,coins:p.coins+share}:p);
+    } else if(result1.winner){
+      fp=fp.map(p=>p.id===result1.winner.id?{...p,coins:p.coins+s.pot1}:p);
+    }
+    logLines.push(`Pot 1 (${s.pot1} 🪙) : ${result1.reason}`);
+  }
+
+  // Résolution Pot 2 (uniquement les joueurs encore en jeu au round 2)
+  let result2=null;
+  if(s.pot2>0 && inPot2.length>0){
+    result2=resolveManche(inPot2);
+    if(result2.draw){
+      const share=Math.floor(s.pot2/result2.draw.length);
+      fp=fp.map(p=>result2.draw.find(d=>d.id===p.id)?{...p,coins:p.coins+share}:p);
+    } else if(result2.winner){
+      fp=fp.map(p=>p.id===result2.winner.id?{...p,coins:p.coins+s.pot2}:p);
+    }
+    logLines.push(`Pot 2 (${s.pot2} 🪙) : ${result2.reason}`);
+  }
+
+  // Score : la victoire de manche (pour le compteur de manches gagnées) va au vainqueur du pot le plus gros,
+  // ou pot2 s'il existe (dernière résolution), sinon pot1.
+  const primary = result2?.winner ? result2 : result1;
+  winnerOverall = primary?.winner || null;
+  reasonOverall = primary ? primary.reason : "Aucun pot à résoudre.";
+
+  const allScores=(s.allScores||[]).map(sc=>winnerOverall&&sc.id===winnerOverall.id?{...sc,total:sc.total+1}:sc);
+  const targetReached=(s.targetRounds||10)>0&&allScores.some(sc=>sc.total>=(s.targetRounds||10));
+
+  return {
+    ...s,players:fp,deck,burnedCards,auctionCard:null,
+    mancheOver:true,
+    winner:winnerOverall,
+    winReason:reasonOverall,
+    drawPlayers:(result1?.draw||result2?.draw)?[...(result1?.draw||[]),...(result2?.draw||[])]:null,
+    roundResults:(result2||result1)?.results||null,
+    pot1Result:result1, pot2Result:result2,
+    allScores,
+    auctionLog:[...logLines],
+    status:targetReached?"gameover":"playing",
+    gameOverReason:targetReached?"target":null,
+  };
+}
+
+function afterCard(s,newPlayers,log){
   const burn=checkMidBurn(s,newPlayers);
   newPlayers=burn.players;
-  const deck=burn.deck;
+  let deck=burn.deck;
   const burnedCards=burn.burnedCards;
   log=[...log,...burn.log];
 
-  if(countEligible(newPlayers)===0){
-    const result=resolveManche(newPlayers);
-    let fp=newPlayers,fp2=newPot;
-    if(result.draw){
-      const share=Math.floor(newPot/result.draw.length);
-      fp=newPlayers.map(p=>result.draw.find(d=>d.id===p.id)?{...p,coins:p.coins+share}:p);
-      fp2=0;
-    }else if(result.winner){
-      fp=newPlayers.map(p=>p.id===result.winner.id?{...p,coins:p.coins+newPot}:p);
-      fp2=0;
+  const numP=newPlayers.length;
+  const inGame=newPlayers.filter(p=>activePlayers(s).find(ap=>ap.id===p.id));
+
+  // 3-4 joueurs : si un déséquilibre de mains apparaît parmi les joueurs encore en jeu
+  // (quelqu'un a moins de cartes que les autres), il reçoit une carte cachée gratuite
+  // de la pioche avant que le bloc d'enchères ne continue.
+  if(numP>2 && inGame.length>0){
+    const maxHand=Math.max(...inGame.map(p=>p.hand.length));
+    const lagging=inGame.filter(p=>p.hand.length<maxHand);
+    if(lagging.length>0 && deck.length>0){
+      lagging.forEach(p=>{
+        if(deck.length>0){
+          const c=deck.shift();
+          const i=newPlayers.findIndex(pp=>pp.id===p.id);
+          newPlayers=newPlayers.map((pp,ii)=>ii===i?{...pp,hand:[...pp.hand,c]}:pp);
+          log.push(`${p.name} était en retard — reçoit ${c.name} (${c.symbol}) gratuitement de la pioche.`);
+        }
+      });
     }
-    const allScores=(s.allScores||[]).map(sc=>result.winner&&sc.id===result.winner.id?{...sc,total:sc.total+1}:sc);
-    const bust=fp.some(p=>p.coins<=0);
-    const targetReached=(s.targetRounds||10)>0&&allScores.some(sc=>sc.total>=(s.targetRounds||10));
-    return {...s,players:fp,pot:fp2,deck,burnedCards,auctionCard:null,
-      mancheOver:true,winner:result.winner||null,winReason:result.reason,
-      drawPlayers:result.draw||null,roundResults:result.results,allScores,
-      auctionLog:[...log,"── Fin de manche ──",result.reason],
-      status:(bust||targetReached)?"gameover":"playing",
-      gameOverReason:bust?"bust":targetReached?"target":null};
+  }
+
+  // Bloc 1 (chacun a 2 cartes) → ouvrir tour de mise 2
+  // Bloc 2 (chacun a 3 cartes) → résolution finale
+  const target = s.bettingRound===1 ? 2 : 3;
+  const allReachedTarget = newPlayers.filter(p=>activePlayers(s).find(ap=>ap.id===p.id)).every(p=>p.hand.length>=target);
+
+  if(allReachedTarget){
+    if(target===3){
+      return resolveBothPots(s,newPlayers,deck,burnedCards,log);
+    }
+    // Fin du bloc d'enchères 1 → ouvrir le 2e tour de mise
+    return {
+      ...s,players:newPlayers,deck,burnedCards,auctionCard:null,
+      bettingRound:2,stakeAmount:0,stakeBy:-1,respondedBy:[],bettingResolved:false,
+      cardOutOfAuction:[],cardBidders:[],
+      currentBid:0,currentBidder:-1,lastBidder:-1,
+      auctionLog:[...log,"── Deuxième tour de mise ──",`${newPlayers[s.tokenIdx].name} a le token.`],
+    };
   }
 
   if(deck.length===0){
-    // Plus de cartes — résoudre quand même
-    const result=resolveManche(newPlayers);
-    const allScores=(s.allScores||[]).map(sc=>result.winner&&sc.id===result.winner.id?{...sc,total:sc.total+1}:sc);
-    const bust=newPlayers.some(p=>p.coins<=0);
-    const targetReached=(s.targetRounds||10)>0&&allScores.some(sc=>sc.total>=(s.targetRounds||10));
-    return {...s,players:newPlayers,pot:newPot,deck,burnedCards,auctionCard:null,
-      mancheOver:true,winner:result.winner||null,winReason:result.reason,
-      drawPlayers:result.draw||null,roundResults:result.results,allScores,
-      auctionLog:[...log,"── Fin de manche ──",result.reason],
-      status:(bust||targetReached)?"gameover":"playing",
-      gameOverReason:bust?"bust":targetReached?"target":null};
+    // Sécurité : plus de cartes, on force la résolution
+    return resolveBothPots(s,newPlayers,deck,burnedCards,log);
   }
 
+  // Continuer le bloc d'enchères : révéler la carte suivante
   const newPhase=s.auctionPhase+1;
+  const elig=newPlayers.filter(p=>activePlayers(s).find(ap=>ap.id===p.id)&&p.hand.length<target);
   let priorityIdx=-1;
-  const numP=newPlayers.length;
   for(let step=0;step<numP;step++){
-    const i=(s.auctionPriority+newPhase-1+step)%numP;
-    if(newPlayers[i].hand.length<3){priorityIdx=i;break;}
+    const i=(s.tokenIdx+newPhase-1+step)%numP;
+    if(elig.find(p=>p.id===newPlayers[i].id)){priorityIdx=i;break;}
   }
-
-  if(countEligible(newPlayers)===1){
-    let np=[...newPlayers];let dk=[...deck];let lg=[...log];
-    const card=dk.shift();
-    np=np.map((p,i)=>i===priorityIdx?{...p,hand:[...p.hand,card]}:p);
-    lg.push(`${np[priorityIdx].name} est seul encore en lice — récupère la carte gratuitement.`);
-    while(dk.length>0&&np[priorityIdx].hand.length<3){
-      const c=dk.shift();
-      np=np.map((p,i)=>i===priorityIdx?{...p,hand:[...p.hand,c]}:p);
-      lg.push(`${np[priorityIdx].name} récupère ${c.name} (${c.symbol}) gratuitement.`);
-    }
-    return afterCard({...s,deck:dk,burnedCards,auctionPhase:newPhase},np,newPot,lg);
+  if(priorityIdx===-1){
+    // Plus personne d'éligible mais target pas atteint (cas limite) : forcer résolution
+    return resolveBothPots(s,newPlayers,deck,burnedCards,log);
   }
 
   const card=deck[0];const deckNext=deck.slice(1);
-  return {...s,players:newPlayers,pot:newPot,deck:deckNext,burnedCards,
+  return {...s,players:newPlayers,deck:deckNext,burnedCards,
     auctionCard:card,auctionPhase:newPhase,
     currentBid:0,currentBidder:priorityIdx,lastBidder:-1,
+    cardOutOfAuction:[],cardBidders:[],
     auctionLog:[...log,`── Carte révélée : ${card.name} (${card.symbol}) — Priorité : ${newPlayers[priorityIdx].name}`]};
 }
 
+// ── TOURS DE MISE (avant chaque bloc d'enchères) ──────────────────────────
+// Le token propose un montant (ou checke/passe), l'autre suit/relance/se retire.
+// On gère N joueurs : chaque joueur doit répondre au stake courant (suivre / relancer / se retirer)
+// jusqu'à ce que tous les joueurs encore en lice aient répondu au même montant.
+function startBettingTurn(s){
+  return {...s,stakeAmount:0,stakeBy:-1,respondedBy:[],bettingResolved:false,currentBidder:s.tokenIdx};
+}
+
+function doBetOpen(s,amount){
+  // Le token (ou joueur courant) ouvre la mise avec un montant (peut être 0 = check)
+  const idx=s.currentBidder!==undefined&&s.currentBidder>=0?s.currentBidder:s.tokenIdx;
+  const player=s.players[idx];
+  if(amount<0||amount>player.coins) return s;
+  const active=activePlayers(s).filter(p=>!(s.bettingRound===2?s.foldedRound2:[]).includes(p.id));
+  const nextIdx=nextActiveBettor(s,idx);
+  const log=amount===0
+    ? `${player.name} ne mise rien (check).`
+    : `${player.name} mise ${amount} 🪙.`;
+  return {...s,stakeAmount:amount,stakeBy:idx,respondedBy:[idx],
+    currentBidder:nextIdx,
+    auctionLog:[...s.auctionLog,log]};
+}
+
+function nextActiveBettor(s,fromIdx){
+  const n=s.players.length;
+  const foldedThisRound = s.bettingRound===2 ? (s.foldedRound2||[]) : (s.foldedRound1||[]);
+  for(let step=1;step<=n;step++){
+    const i=(fromIdx+step)%n;
+    if(!foldedThisRound.includes(s.players[i].id)) return i;
+  }
+  return -1;
+}
+
+function doBetCall(s){
+  // Le joueur courant suit la mise
+  const idx=s.currentBidder;
+  const respondedBy=[...new Set([...(s.respondedBy||[]),idx])];
+  const log=[...s.auctionLog,`${s.players[idx].name} suit (${s.stakeAmount} 🪙).`];
+  return finishOrAdvanceBetting(s,idx,respondedBy,log);
+}
+
+function doBetRaise(s,amount){
+  const idx=s.currentBidder;
+  const player=s.players[idx];
+  if(amount<=s.stakeAmount||amount>player.coins) return s;
+  const nextIdx=nextActiveBettor(s,idx);
+  return {...s,stakeAmount:amount,stakeBy:idx,respondedBy:[idx],
+    currentBidder:nextIdx,
+    auctionLog:[...s.auctionLog,`${player.name} relance à ${amount} 🪙.`]};
+}
+
+function doBetFold(s){
+  const idx=s.currentBidder;
+  const player=s.players[idx];
+  const foldKey = s.bettingRound===2 ? "foldedRound2" : "foldedRound1";
+  const folded=[...new Set([...(s[foldKey]||[]),player.id])];
+  const log=[...s.auctionLog,`${player.name} se retire${s.bettingRound===1?" — récupère sa mise et est hors jeu pour cette manche.":" — récupère sa mise du second tour, reste en jeu pour le pot 1 uniquement."}`];
+
+  let next={...s,[foldKey]:folded,auctionLog:log};
+
+  // Vérifier s'il ne reste qu'un seul joueur actif → la manche s'arrête immédiatement (pas de jeu)
+  const stillIn=s.players.filter(p=>!folded.includes(p.id));
+  if(stillIn.length<=1){
+    if(s.bettingRound===1){
+      // Manche annulée, personne ne joue — retour direct à une nouvelle manche
+      next.auctionLog=[...log,"── Un seul joueur reste en lice : la manche ne se joue pas. ──"];
+      next.mancheOver=true;
+      next.winner=stillIn[0]||null;
+      next.winReason=stillIn[0]?`${stillIn[0].name} remporte le pot par forfait.`:"Manche annulée.";
+      if(stillIn[0]){
+        next.players=s.players.map(p=>p.id===stillIn[0].id?{...p,coins:p.coins+s.pot1+s.pot2}:p);
+      }
+      return next;
+    } else {
+      // Round 2 : le pot 2 ne sera pas joué, mais le pot 1 doit toujours être résolu à la fin
+      return advanceToNextAuctionOrResolve(next,idx);
+    }
+  }
+
+  return finishOrAdvanceBetting(next,idx,[...(s.respondedBy||[]),idx],log);
+}
+
+function finishOrAdvanceBetting(s,idx,respondedBy,log){
+  const foldKey = s.bettingRound===2 ? "foldedRound2" : "foldedRound1";
+  const folded=s[foldKey]||[];
+  const stillIn=s.players.filter(p=>!folded.includes(p.id));
+  const allResponded=stillIn.every(p=>respondedBy.includes(s.players.findIndex(pp=>pp.id===p.id)));
+
+  if(allResponded){
+    // Tour de mise terminé : le montant convenu (stakeAmount) est payé par tous les joueurs encore en lice
+    const potKey = s.bettingRound===1 ? "pot1" : "pot2";
+    let players=s.players;
+    let addedToPot=0;
+    stillIn.forEach(p=>{
+      const i=s.players.findIndex(pp=>pp.id===p.id);
+      players=players.map((pp,ii)=>ii===i?{...pp,coins:pp.coins-s.stakeAmount}:pp);
+      addedToPot+=s.stakeAmount;
+    });
+    const newLog=[...log,`Tour de mise terminé — ${s.stakeAmount} 🪙 par joueur ajoutés au pot ${s.bettingRound}.`];
+    const newState={...s,players,[potKey]:s[potKey]+addedToPot,respondedBy,bettingResolved:true};
+    return startAuctionBlock(newState,newLog);
+  }
+
+  return {...s,respondedBy,currentBidder:nextActiveBettor(s,idx)};
+}
+
+function startAuctionBlock(s,log){
+  // Démarre le bloc d'enchères carte par carte (révélation de la première carte)
+  if(s.deck.length===0){
+    return resolveBothPots(s,s.players,s.deck,s.burnedCards,log);
+  }
+  const card=s.deck[0];const deck=s.deck.slice(1);
+  const numP=s.players.length;
+  let priorityIdx=s.tokenIdx;
+  // s'assurer que le joueur prioritaire n'est pas replié
+  const foldKey = s.bettingRound===2 ? "foldedRound2" : "foldedRound1";
+  const folded=s[foldKey]||[];
+  if(folded.includes(s.players[priorityIdx].id)){
+    for(let step=1;step<=numP;step++){
+      const i=(s.tokenIdx+step)%numP;
+      if(!folded.includes(s.players[i].id)){priorityIdx=i;break;}
+    }
+  }
+  return {...s,deck,auctionCard:card,auctionPhase:1,
+    currentBid:0,currentBidder:priorityIdx,lastBidder:-1,
+    cardOutOfAuction:[],cardBidders:[],
+    auctionLog:[...log,"── Bloc d'enchères ──",`── Carte révélée : ${card.name} (${card.symbol}) — Priorité : ${s.players[priorityIdx].name}`]};
+}
+
+function advanceToNextAuctionOrResolve(s,foldedIdx){
+  // Utilisé quand un joueur se retire au round 2 betting et qu'il ne reste qu'un joueur :
+  // le pot 2 ne sera pas disputé pendant le bloc d'enchères, mais on doit quand même
+  // continuer à distribuer les cartes restantes pour atteindre 3 cartes chacun (pot 1 à résoudre).
+  // Simplification : on saute directement à la résolution si un seul joueur reste pour pot2,
+  // en distribuant les cartes restantes gratuitement à tous pour compléter leur main à 3.
+  let players=[...s.players];
+  let deck=[...s.deck];
+  let log=[...s.auctionLog];
+  const target=3;
+  // Distribution simple : chaque joueur pas encore à 3 cartes pioche gratuitement
+  while(players.some(p=>p.hand.length<target) && deck.length>0){
+    players=players.map(p=>{
+      if(p.hand.length<target){
+        const c=deck.shift();
+        log.push(`${p.name} reçoit ${c.name} (${c.symbol}) gratuitement (pot 2 non disputé).`);
+        return {...p,hand:[...p.hand,c]};
+      }
+      return p;
+    });
+  }
+  return resolveBothPots(s,players,deck,s.burnedCards,log);
+}
+
+// ── ENCHÈRES CARTE PAR CARTE (au sein d'un bloc) ──────────────────────────
+// Mode 2 joueurs : système simple ouvrir/passer puis suivre/abandonner, perdant reçoit une carte cachée immédiatement.
+// Mode 3-4 joueurs : l'enchère circule autour de la table (round-robin), chaque joueur peut surenchérir ou
+// abandonner l'enchère sur LA CARTE EN COURS (pas la manche) ; les joueurs qui abandonnent l'enchère sur cette
+// carte ne reçoivent rien immédiatement. Une fois qu'il ne reste qu'un joueur en lice sur cette carte, il la
+// remporte. On continue alors à révéler des cartes jusqu'à ce qu'un déséquilibre apparaisse entre les joueurs
+// encore en jeu (quelqu'un a moins de cartes que les autres) — ce joueur reçoit alors une carte cachée gratuite
+// avant que le bloc suivant ne commence.
+
 function doPass(s){
   const {players,auctionCard,currentBidder}=s;
-  const oi=nextEligible(players,currentBidder,currentBidder);
-  if(oi===-1) return s;
-  const np=players.map((p,i)=>i===oi?{...p,hand:[...p.hand,auctionCard]}:p);
-  return afterCard(s,np,s.pot,[...s.auctionLog,`${players[currentBidder].name} passe → ${players[oi].name} récupère la carte gratuitement.`]);
+  if(players.length===2){
+    const foldKey = s.bettingRound===2 ? "foldedRound2" : "foldedRound1";
+    const folded=s[foldKey]||[];
+    const eligible=players.map((p,i)=>({p,i})).filter(({p,i})=>i!==currentBidder&&!folded.includes(p.id)&&p.hand.length<(s.bettingRound===1?2:3));
+    if(eligible.length===0) return s;
+    const oi=eligible[0].i;
+    let np=players.map((p,i)=>i===oi?{...p,hand:[...p.hand,auctionCard]}:p);
+    let dk=[...s.deck];
+    let log=[...s.auctionLog,`${players[currentBidder].name} passe → ${players[oi].name} récupère la carte gratuitement.`];
+    if(dk.length>0){
+      const c=dk.shift();
+      np=np.map((p,i)=>i===currentBidder?{...p,hand:[...p.hand,c]}:p);
+      log.push(`${players[currentBidder].name} reçoit gratuitement une carte cachée de la pioche.`);
+    }
+    return afterCard({...s,deck:dk},np,log);
+  }
+  // 3-4 joueurs : le token passe → l'enchère continue avec le joueur suivant, personne ne reçoit rien
+  return tableAuctionAdvance(s,currentBidder,`${players[currentBidder].name} passe.`,false);
 }
+
 function doBid(s,amount){
   const {players,currentBidder,currentBid}=s;
-  if(isNaN(amount)||amount<=currentBid) return s;
-  const nextIdx=nextEligible(players,currentBidder);
-  if(nextIdx===-1) return s;
-  return {...s,currentBid:amount,lastBidder:currentBidder,currentBidder:nextIdx,
+  if(isNaN(amount)||amount<=currentBid||amount>players[currentBidder].coins) return s;
+  const foldKey = s.bettingRound===2 ? "foldedRound2" : "foldedRound1";
+  const folded=s[foldKey]||[];
+  if(players.length===2){
+    const nextIdx=nextEligibleAuction(s,currentBidder,folded);
+    if(nextIdx===-1) return s;
+    return {...s,currentBid:amount,lastBidder:currentBidder,currentBidder:nextIdx,
+      cardBidders:[currentBidder],
+      auctionLog:[...s.auctionLog,`${players[currentBidder].name} propose ${amount} 🪙`]};
+  }
+  // 3-4 joueurs : ouverture ou surenchère dans le round-robin de cette carte
+  const cardOut=s.cardOutOfAuction||[];
+  const cardBidders=[...new Set([...(s.cardBidders||[]),currentBidder])];
+  const nextIdx=nextTableBidder(s,currentBidder,cardOut);
+  return {...s,currentBid:amount,lastBidder:currentBidder,currentBidder:nextIdx,cardBidders,
     auctionLog:[...s.auctionLog,`${players[currentBidder].name} propose ${amount} 🪙`]};
 }
-function doFold(s){
-  const {players,auctionCard,lastBidder,currentBid,currentBidder}=s;
-  const np=players.map((p,i)=>i===lastBidder?{...p,hand:[...p.hand,auctionCard],coins:p.coins-currentBid}:p);
-  return afterCard(s,np,s.pot+currentBid,[...s.auctionLog,`${players[currentBidder].name} abandonne. ${players[lastBidder].name} remporte la carte pour ${currentBid} 🪙.`]);
+
+function nextEligibleAuction(s,fromIdx,folded){
+  const n=s.players.length;
+  const target=s.bettingRound===1?2:3;
+  for(let step=1;step<n;step++){
+    const i=(fromIdx+step)%n;
+    if(!folded.includes(s.players[i].id)&&s.players[i].hand.length<target) return i;
+  }
+  return -1;
 }
+
+// Joueur suivant encore "dans l'enchère de cette carte" (n'a pas encore plié sur cette carte précise),
+// en excluant aussi les joueurs repliés du tour de mise courant.
+function nextTableBidder(s,fromIdx,cardOut){
+  const n=s.players.length;
+  const foldKey = s.bettingRound===2 ? "foldedRound2" : "foldedRound1";
+  const folded=s[foldKey]||[];
+  for(let step=1;step<=n;step++){
+    const i=(fromIdx+step)%n;
+    if(!folded.includes(s.players[i].id) && !cardOut.includes(i)) return i;
+  }
+  return -1;
+}
+
+function doFold(s){
+  const {players,currentBidder}=s;
+  if(players.length===2){
+    const {auctionCard,lastBidder,currentBid}=s;
+    let np=players.map((p,i)=>i===lastBidder?{...p,hand:[...p.hand,auctionCard],coins:p.coins-currentBid}:p);
+    let dk=[...s.deck];
+    const potKey=s.bettingRound===1?"pot1":"pot2";
+    let log=[...s.auctionLog,`${players[currentBidder].name} abandonne l'enchère. ${players[lastBidder].name} remporte la carte pour ${currentBid} 🪙.`];
+    if(dk.length>0){
+      const c=dk.shift();
+      np=np.map((p,i)=>i===currentBidder?{...p,hand:[...p.hand,c]}:p);
+      log.push(`${players[currentBidder].name} reçoit gratuitement une carte cachée de la pioche.`);
+    }
+    return afterCard({...s,deck:dk,[potKey]:s[potKey]+currentBid},np,log);
+  }
+  // 3-4 joueurs : ce joueur abandonne l'enchère sur CETTE carte (il ne reçoit rien immédiatement)
+  return tableAuctionAdvance(s,currentBidder,`${players[currentBidder].name} abandonne l'enchère sur cette carte.`,true);
+}
+
+// Avance le round-robin de la carte en cours (3-4 joueurs). Si plus qu'un seul joueur reste en lice
+// sur cette carte, il la remporte (paie son enchère si quelqu'un a misé) ; aucune carte cachée n'est
+// distribuée immédiatement — on continue le bloc tant qu'aucun déséquilibre de mains n'apparaît.
+function tableAuctionAdvance(s,currentBidder,logLine,isFold){
+  const cardOut=[...(s.cardOutOfAuction||[]), ...(isFold?[currentBidder]:[])];
+  const foldKey = s.bettingRound===2 ? "foldedRound2" : "foldedRound1";
+  const folded=s[foldKey]||[];
+  const stillInCard=s.players.map((p,i)=>i).filter(i=>!folded.includes(s.players[i].id)&&!cardOut.includes(i));
+
+  if(stillInCard.length<=1){
+    // Un seul joueur reste en lice pour cette carte → il la remporte
+    const winnerIdx=stillInCard[0];
+    const amount=s.currentBid||0;
+    const potKey=s.bettingRound===1?"pot1":"pot2";
+    let np=s.players.map((p,i)=>i===winnerIdx?{...p,hand:[...p.hand,s.auctionCard],coins:p.coins-amount}:p);
+    const log=[...s.auctionLog,logLine,`${np[winnerIdx].name} remporte la carte${amount>0?` pour ${amount} 🪙`:" (personne n'a enchéri)"}.`];
+    return afterCard({...s,[potKey]:s[potKey]+amount,cardOutOfAuction:[],cardBidders:[]},np,log);
+  }
+
+  const nextIdx=nextTableBidder(s,currentBidder,cardOut);
+  if(nextIdx===-1){
+    // Sécurité : ne devrait pas arriver si stillInCard.length>1
+    const winnerIdx=stillInCard[0];
+    const amount=s.currentBid||0;
+    const potKey=s.bettingRound===1?"pot1":"pot2";
+    let np=s.players.map((p,i)=>i===winnerIdx?{...p,hand:[...p.hand,s.auctionCard],coins:p.coins-amount}:p);
+    return afterCard({...s,[potKey]:s[potKey]+amount,cardOutOfAuction:[],cardBidders:[]},np,[...s.auctionLog,logLine]);
+  }
+  return {...s,cardOutOfAuction:cardOut,currentBidder:nextIdx,auctionLog:[...s.auctionLog,logLine]};
+}
+
 function doNextRound(s){
   const numP=s.players.length;
-  const bigBlindIdx=(s.auctionPriority+1)%numP;
-  return buildRoundState({...s,players:s.players.map(p=>({...p,hand:[]}))},s.round+1,bigBlindIdx);
+  const nextToken=(s.tokenIdx+1)%numP;
+  const built=buildRoundState({...s,players:s.players.map(p=>({...p,hand:[]}))},s.round+1,nextToken);
+  return startBettingTurn(built);
 }
 
 // ═══════════════════════════════════════════════
@@ -1050,30 +1400,19 @@ function doNextRound(s){
 function screenGameOver(sess,rs){
   app.classList.remove("in-game");
   const sorted=[...(rs.allScores||[])].sort((a,b)=>b.total-a.total);
-  const richest=[...rs.players].sort((a,b)=>b.coins-a.coins);
   const champion=sorted[0];
-  const reasonText = rs.gameOverReason==="target"
-    ? `${champion?.name||""} atteint l'objectif de ${rs.targetRounds||10} manches gagnées !`
-    : "Un joueur ne peut plus payer ses blindes.";
+  const reasonText = `${champion?.name||""} atteint l'objectif de ${rs.targetRounds||10} manches gagnées !`;
   render(`
     <div style="background:#1a0a00;border:1px solid var(--gold);border-radius:12px;padding:2rem;text-align:center;margin-bottom:1.5rem">
       <div style="font-size:2.5rem;margin-bottom:.5rem">👑</div>
       <h2 class="goldL" style="margin-bottom:.4rem">Fin de partie</h2>
       <p class="muted">${reasonText}</p>
     </div>
-    <div class="two-col mb1">
-      <div class="box">
-        <h3 class="gold sans" style="font-size:.95rem;margin-bottom:.75rem">Manches gagnées</h3>
-        ${sorted.map((sc,i)=>`<div class="row-sb" style="padding:3px 0;font-family:sans-serif;font-size:.88rem">
-          <span style="color:${i===0?"var(--goldL)":"var(--text)"}">${i===0?"🏆 ":""}${sc.name}</span>
-          <strong class="goldL">${sc.total}</strong></div>`).join("")}
-      </div>
-      <div class="box">
-        <h3 class="gold sans" style="font-size:.95rem;margin-bottom:.75rem">Pièces restantes</h3>
-        ${richest.map((p,i)=>`<div class="row-sb" style="padding:3px 0;font-family:sans-serif;font-size:.88rem">
-          <span style="color:${i===0?"var(--goldL)":"var(--text)"}">${i===0?"💰 ":""}${p.name}</span>
-          <strong class="gold">${p.coins}🪙</strong></div>`).join("")}
-      </div>
+    <div class="box mb1">
+      <h3 class="gold sans" style="font-size:.95rem;margin-bottom:.75rem">Manches gagnées</h3>
+      ${sorted.map((sc,i)=>`<div class="row-sb" style="padding:3px 0;font-family:sans-serif;font-size:.88rem">
+        <span style="color:${i===0?"var(--goldL)":"var(--text)"}">${i===0?"🏆 ":""}${sc.name}</span>
+        <strong class="goldL">${sc.total}</strong></div>`).join("")}
     </div>
     <div style="text-align:center">
       <button class="btn-primary" id="btn-restart">Nouvelle partie</button>

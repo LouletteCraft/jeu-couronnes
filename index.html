@@ -956,7 +956,7 @@ function nextEligible(players,fromIdx,excludeIdx=-1){
   return -1;
 }
 function countEligible(players){return players.filter(p=>p.hand.length<3).length;}
-function activePlayers(s){return s.players.filter(p=>!s.foldedRound1.includes(p.id));}
+function activePlayers(s){return s.players.filter(p=>!(s.foldedRound1||[]).includes(p.id));}
 
 // Vérifie si à 3 joueurs il faut brûler une carte intermédiaire
 function checkMidBurn(s,newPlayers){
@@ -1123,7 +1123,7 @@ function doBetOpen(s,amount){
   const idx=s.currentBidder!==undefined&&s.currentBidder>=0?s.currentBidder:s.tokenIdx;
   const player=s.players[idx];
   if(amount<0||amount>player.coins) return s;
-  const active=activePlayers(s).filter(p=>!(s.bettingRound===2?s.foldedRound2:[]).includes(p.id));
+  const active=activePlayers(s).filter(p=>!(s.bettingRound===2?(s.foldedRound2||[]):[]).includes(p.id));
   const nextIdx=nextActiveBettor(s,idx);
   const log=amount===0
     ? `${player.name} ne mise rien (check).`

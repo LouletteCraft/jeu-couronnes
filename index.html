@@ -1043,7 +1043,7 @@ function afterCard(s,newPlayers,log){
     tokenIdx:newTokenIdx,
     auctionCard:card,auctionPhase:s.auctionPhase+1,
     currentBid:0,currentBidder:priorityIdx,lastBidder:-1,
-    cardOutOfAuction:[],cardBidders:[],bidsThisCard:{},
+    cardOutOfAuction:[],cardBidders:[],bidsThisCard:{},cardFirstPlayer:priorityIdx,
     auctionLog:[...log,`── Carte révélée : ${card.name} (${card.symbol}) — Priorité : ${newPlayers[priorityIdx].name}`]};
 }
 
@@ -1066,7 +1066,7 @@ function startAuctionBlock(s,log){
   }
   return {...s,deck,auctionCard:card,auctionPhase:1,
     currentBid:0,currentBidder:priorityIdx,lastBidder:-1,
-    cardOutOfAuction:[],cardBidders:[],bidsThisCard:{},
+    cardOutOfAuction:[],cardBidders:[],bidsThisCard:{},cardFirstPlayer:priorityIdx,
     auctionLog:[...log,"── Carte révélée : "+card.name+" ("+card.symbol+") — Priorité : "+s.players[priorityIdx].name]};
 }
 
@@ -1186,9 +1186,10 @@ function tableAuctionAdvance(s,currentBidder,logLine,isFold){
   const stillInCard=s.players.map((p,i)=>i).filter(i=>!folded.includes(s.players[i].id)&&!cardOut.includes(i));
 
   if(stillInCard.length<=1){
-    // Un seul joueur reste en lice pour cette carte → il la remporte.
-    // Tous les joueurs ayant misé sur cette carte (gagnant compris) perdent leurs jetons engagés.
-    const winnerIdx=stillInCard[0];
+    // Cas normal : un seul joueur reste en lice pour cette carte → il la remporte.
+    // Cas particulier : si TOUT LE MONDE a abandonné (personne n'a enchéri du tout),
+    // la carte revient au premier joueur du tour (celui qui avait la priorité, le "token" de la carte).
+    const winnerIdx = stillInCard.length===1 ? stillInCard[0] : (s.cardFirstPlayer ?? s.players.map((p,i)=>i).find(i=>!folded.includes(s.players[i].id)) ?? 0);
     let np=applyAllBids(s.players,s.bidsThisCard);
     np=np.map((p,i)=>i===winnerIdx?{...p,hand:[...p.hand,s.auctionCard]}:p);
     const amount=s.currentBid||0;

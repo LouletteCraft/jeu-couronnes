@@ -991,7 +991,7 @@ function afterCard(s,newPlayers,log){
           const c=deck.shift();
           const i=newPlayers.findIndex(pp=>pp.id===p.id);
           newPlayers=newPlayers.map((pp,ii)=>ii===i?{...pp,hand:[...pp.hand,c]}:pp);
-          log.push(`${p.name} était en retard — reçoit ${c.name} (${c.symbol}) gratuitement de la pioche.`);
+          log.push(`${p.name} était en retard — reçoit une carte gratuitement de la pioche (face cachée).`);
         }
       });
     }

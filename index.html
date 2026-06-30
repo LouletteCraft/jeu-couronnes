@@ -197,7 +197,7 @@ function buildDeck(numPlayers) {
 
 const COMBINATIONS = [
   // Royales (1-3)
-  {id:1,  name:"Le Couronnement d'Ébène", type:"royal",   cards:[4,6,7], rank:1,  quote:"La science, la noblesse et le pouvoir s'unissent pour fonder un royaume éternel."},
+  {id:1,  name:"Le Couronnement d'Ébène", type:"royal",   cards:[4,2,7], rank:1,  quote:"La science, la noblesse et le pouvoir s'unissent pour fonder un royaume éternel."},
   {id:2,  name:"Le Pacte de la Couronne",  type:"royal",   cards:[2,6,7], rank:2,  quote:"Même les intrigues servent la Couronne lorsque le royaume est en péril."},
   {id:3,  name:"L'Oracle du Trône",        type:"royal",   cards:[2,3,7], rank:3,  quote:"Le souverain règne autant par les prophéties que par la force."},
   // Classiques (4-11)
@@ -212,7 +212,7 @@ const COMBINATIONS = [
   // Némésis (12-14) — annulent toutes les royales
   {id:12, name:"L'Alliance Écarlate",      type:"nemesis", cards:[1,5,7], rank:12, quote:"Le pouvoir succombe lorsque la guerre marche aux côtés de la folie.",       effect:"Annule toutes les combinaisons Royales."},
   {id:13, name:"Le Pacte des Damnés",      type:"nemesis", cards:[1,2,6], rank:13, quote:"Les masques tombent et la Couronne se condamne elle-même.",                  effect:"Annule toutes les combinaisons Royales."},
-  {id:14, name:"L'Éclipse du Royaume",     type:"nemesis", cards:[1,2,4], rank:14, quote:"Lorsque la folie, la tromperie et les arcanes s'unissent, aucun royaume ne peut survivre.", effect:"Annule toutes les combinaisons Royales."},
+  {id:14, name:"L'Éclipse du Royaume",     type:"nemesis", cards:[1,6,4], rank:14, quote:"Lorsque la folie, la tromperie et les arcanes s'unissent, aucun royaume ne peut survivre.", effect:"Annule toutes les combinaisons Royales."},
 ];
 
 function findCombo(cardIds) {

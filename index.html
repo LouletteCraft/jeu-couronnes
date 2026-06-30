@@ -1005,9 +1005,11 @@ function afterCard(s,newPlayers,log){
       return resolveRound(s,newPlayers,deck,burnedCards,log);
     }
     // Fin du bloc d'enchères 1 → enchaîner directement sur le bloc d'enchères 2 (pas de tour de mise)
+    // Le token avance aussi au changement de bloc, pour que l'ouvreur du bloc 2 diffère de celui du bloc 1.
+    const nextToken=(s.tokenIdx+1)%numP;
     const nextState={
       ...s,players:newPlayers,deck,burnedCards,auctionCard:null,
-      bettingRound:2,
+      bettingRound:2,tokenIdx:nextToken,
       cardOutOfAuction:[],cardBidders:[],
       currentBid:0,currentBidder:-1,lastBidder:-1,
       auctionLog:[...log,"── Deuxième bloc d'enchères ──"],
@@ -1020,12 +1022,13 @@ function afterCard(s,newPlayers,log){
     return resolveRound(s,newPlayers,deck,burnedCards,log);
   }
 
-  // Continuer le bloc d'enchères : révéler la carte suivante
-  const newPhase=s.auctionPhase+1;
+  // Continuer le bloc d'enchères : révéler la carte suivante.
+  // Règle : après chaque enchère (chaque carte résolue), le token/priorité passe au joueur suivant.
+  const newTokenIdx=(s.tokenIdx+1)%numP;
   const elig=newPlayers.filter(p=>activePlayers(s).find(ap=>ap.id===p.id)&&p.hand.length<target);
   let priorityIdx=-1;
   for(let step=0;step<numP;step++){
-    const i=(s.tokenIdx+newPhase-1+step)%numP;
+    const i=(newTokenIdx+step)%numP;
     if(elig.find(p=>p.id===newPlayers[i].id)){priorityIdx=i;break;}
   }
   if(priorityIdx===-1){
@@ -1035,7 +1038,8 @@ function afterCard(s,newPlayers,log){
 
   const card=deck[0];const deckNext=deck.slice(1);
   return {...s,players:newPlayers,deck:deckNext,burnedCards,
-    auctionCard:card,auctionPhase:newPhase,
+    tokenIdx:newTokenIdx,
+    auctionCard:card,auctionPhase:s.auctionPhase+1,
     currentBid:0,currentBidder:priorityIdx,lastBidder:-1,
     cardOutOfAuction:[],cardBidders:[],
     auctionLog:[...log,`── Carte révélée : ${card.name} (${card.symbol}) — Priorité : ${newPlayers[priorityIdx].name}`]};

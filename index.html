@@ -1140,8 +1140,8 @@ function nextTableBidder(s,fromIdx,cardOut){
 
 function doFold(s){
   const {players,currentBidder,lastBidder}=s;
-  if(lastBidder===-1||lastBidder===undefined||lastBidder===null) return s;
   if(players.length===2){
+    if(lastBidder===-1||lastBidder===undefined||lastBidder===null) return s;
     const {auctionCard,currentBid}=s;
     let np=players.map((p,i)=>i===lastBidder?{...p,hand:[...p.hand,auctionCard],coins:p.coins-currentBid}:p);
     let dk=[...s.deck];
@@ -1153,7 +1153,8 @@ function doFold(s){
     }
     return afterCard({...s,deck:dk},np,log);
   }
-  // 3-4 joueurs : ce joueur abandonne l'enchère sur CETTE carte (il ne reçoit rien immédiatement)
+  // 3-4 joueurs : ce joueur abandonne l'enchère sur CETTE carte (il ne reçoit rien immédiatement).
+  // Possible même si personne n'a encore enchéri (équivalent de "ne pas enchérir" dans le round-robin).
   return tableAuctionAdvance(s,currentBidder,`${players[currentBidder].name} abandonne l'enchère sur cette carte.`,true);
 }
 

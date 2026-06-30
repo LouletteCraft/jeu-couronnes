@@ -639,6 +639,7 @@ let gameActing=false;
 function screenGame(sess,initialRs){
   if(gameUnsub){gameUnsub();gameUnsub=null;}
   gameActing=false;
+  lastRenderedStateJson=null;
   app.classList.add("in-game");
   render(`
     <div id="game-header" class="row-sb mb1"></div>
@@ -676,7 +677,12 @@ function screenGame(sess,initialRs){
   });
 }
 
+let lastRenderedStateJson=null;
 function renderGame(sess,rs){
+  const stateJson=JSON.stringify(rs);
+  if(stateJson===lastRenderedStateJson) return; // état inchangé depuis le dernier poll : ne pas retoucher le DOM
+  lastRenderedStateJson=stateJson;
+
   const {roomId,playerId}=sess;
   const myIdx=rs.players.findIndex(p=>p.id===playerId);
   const me=rs.players[myIdx];
@@ -1338,9 +1344,10 @@ function nextTableBidder(s,fromIdx,cardOut){
 }
 
 function doFold(s){
-  const {players,currentBidder}=s;
+  const {players,currentBidder,lastBidder}=s;
+  if(lastBidder===-1||lastBidder===undefined||lastBidder===null) return s;
   if(players.length===2){
-    const {auctionCard,lastBidder,currentBid}=s;
+    const {auctionCard,currentBid}=s;
     let np=players.map((p,i)=>i===lastBidder?{...p,hand:[...p.hand,auctionCard],coins:p.coins-currentBid}:p);
     let dk=[...s.deck];
     const potKey=s.bettingRound===1?"pot1":"pot2";

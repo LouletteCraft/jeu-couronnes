@@ -71,19 +71,18 @@
   .crd-empty.lg { width:64px; height:76px; }
   .players-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: .65rem; margin-bottom: 1rem; }
 
-  /* ── Layout : col1 (40%, joueurs+enchère 50/50) | col2 (combinaisons) | journal pleine largeur ── */
+  /* ── Layout : col1 (40%, joueurs en haut / carte en bas) | col2 (combinaisons) | journal pleine largeur ── */
   .game-layout { display: flex; flex-direction: column; gap: 1rem; }
   .game-row    { display: flex; flex-direction: column; gap: 1rem; }
   .col1        { min-width: 0; }
   .col2        { min-width: 0; }
   .col1-inner  { display: flex; flex-direction: column; gap: .75rem; }
+  .col1-players { display: grid; grid-template-columns: 1fr; gap: .6rem; }
+  .col1-auction { min-width: 0; }
   @media(min-width: 880px){
     .game-row { flex-direction: row; align-items: stretch; }
     .col1 { flex: 0 0 40%; max-width: 40%; }
     .col2 { flex: 1 1 60%; max-width: 60%; }
-    .col1-inner { flex-direction: row; gap: .75rem; align-items: stretch; }
-    .col1-players { flex: 0 0 50%; max-width: 50%; display: flex; flex-direction: column; gap: .6rem; min-width: 0; }
-    .col1-auction { flex: 0 0 50%; max-width: 50%; min-width: 0; }
   }
   .col1-players { display: flex; flex-direction: column; gap: .6rem; }
   .combos-box { height: 100%; }
@@ -135,10 +134,19 @@
 </head>
 <body>
 <header>
-  <h1>⚜ Le Jeu des Couronnes</h1>
-  <p>Enchères · Combinaisons · Némésis · Multijoueur en ligne</p>
+  <div class="row-sb" style="max-width:900px;margin:0 auto;align-items:flex-start">
+    <div style="flex:1"></div>
+    <div style="flex:2;text-align:center">
+      <h1>⚜ Le Jeu des Couronnes</h1>
+      <p>Jeu créé et imaginé par JLK.</p>
+    </div>
+    <div style="flex:1;display:flex;justify-content:flex-end;padding-top:.3rem">
+      <button class="btn-secondary" id="btn-rules" style="font-size:.8rem;padding:.4rem .9rem">📜 Règles</button>
+    </div>
+  </div>
 </header>
 <div id="app"></div>
+<div id="rules-modal-area"></div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -158,6 +166,15 @@ const db    = getDatabase(fbApp);
 async function dbGet(roomId)       { const s=await get(ref(db,`rooms/${roomId}`)); return s.exists()?s.val():null; }
 async function dbSet(roomId,data)  { await set(ref(db,`rooms/${roomId}`),data); }
 function dbListen(roomId,cb)       { const r=ref(db,`rooms/${roomId}`); onValue(r,s=>cb(s.exists()?s.val():null)); return ()=>off(r); }
+async function dbListPublicRooms() {
+  try {
+    const s = await get(ref(db,"rooms"));
+    if(!s.exists()) return [];
+    const all = Object.values(s.val()||{});
+    return all.filter(r=>r && r.isPublic && (r.status==="lobby"||r.status==="playing"))
+              .sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  } catch { return []; }
+}
 
 // ═══════════════════════════════════════════════
 // DONNÉES DU JEU
@@ -338,25 +355,46 @@ function screenLobby(err=""){
   render(`
     <div class="box">
       <h2 class="goldL mb05" style="font-size:1.3rem">Bienvenue</h2>
-      <p class="muted mb1">Crée une salle ou rejoins celle d'un ami avec son code.</p>
+      <p class="muted mb1">Crée une salle ou rejoins celle d'un ami avec son code — ou rejoins une partie publique ci-dessous.</p>
       <div class="row mb1">
         <button class="btn-primary"   id="btn-create">Créer une salle</button>
-        <button class="btn-secondary" id="btn-join-tog">Rejoindre une salle</button>
+        <button class="btn-secondary" id="btn-join-tog">Rejoindre avec un code</button>
       </div>
     </div>
+
     <div class="box accent hidden" id="create-form">
       <h3 class="goldL mb1" style="font-size:1.1rem">Créer une salle</h3>
       <label class="lbl">Ton nom</label>
       <input type="text" id="c-name" placeholder="Ex : Aliénor" maxlength="20" class="mb1"/>
+
       <label class="lbl">Joueurs max</label>
       <div class="row mb1">${[2,3,4].map(n=>`<button class="btn-secondary size-btn nbtn" data-n="${n}">${n}</button>`).join("")}</div>
+
+      <label class="lbl">Manches gagnantes (premier à ce score remporte la partie)</label>
+      <div class="row mb1">${[5,10,15,20].map(n=>`<button class="btn-secondary rbtn" data-r="${n}">${n}</button>`).join("")}</div>
+
       <label class="lbl">Mise de départ</label>
-      <div class="row mb1">${[50,100,200,500].map(v=>`<button class="btn-secondary bbtn" data-v="${v}">${v} 🪙</button>`).join("")}</div>
+      <div class="row mb05">
+        ${[50,100,200,500].map(v=>`<button class="btn-secondary bbtn" data-v="${v}">${v} 🪙</button>`).join("")}
+        <button class="btn-secondary" id="btn-custom-budget-tog">Personnalisée…</button>
+      </div>
+      <div class="hidden mb1" id="custom-budget-row">
+        <input type="number" id="custom-budget-inp" min="1" placeholder="Montant en pièces" />
+      </div>
+
+      <label class="lbl">Visibilité</label>
+      <div class="row mb1">
+        <button class="btn-primary size-btn vbtn" data-v="private" style="min-width:120px">🔒 Privée (code)</button>
+        <button class="btn-secondary size-btn vbtn" data-v="public" style="min-width:120px">🌐 Publique</button>
+      </div>
+      <p class="muted mb1" style="font-size:.78rem">Une salle publique apparaît dans la liste ci-dessous et peut être rejointe sans code.</p>
+
       ${err?`<p class="error">${err}</p>`:""}
       <button class="btn-primary" id="btn-do-create">Créer →</button>
     </div>
+
     <div class="box accent hidden" id="join-form">
-      <h3 class="goldL mb1" style="font-size:1.1rem">Rejoindre une salle</h3>
+      <h3 class="goldL mb1" style="font-size:1.1rem">Rejoindre avec un code</h3>
       <label class="lbl">Ton nom</label>
       <input type="text" id="j-name" placeholder="Ex : Baudouin" maxlength="20" class="mb1"/>
       <label class="lbl">Code de la salle</label>
@@ -364,29 +402,72 @@ function screenLobby(err=""){
       ${err?`<p class="error">${err}</p>`:""}
       <button class="btn-primary" id="btn-do-join">Rejoindre →</button>
     </div>
+
+    <div class="box" id="public-rooms-box">
+      <h3 class="goldL mb1" style="font-size:1.1rem">🌐 Parties publiques en cours</h3>
+      <div id="public-rooms-list"><p class="muted">Recherche des parties…</p></div>
+    </div>
+
+    <div class="box hidden" id="public-join-form">
+      <h3 class="goldL mb1" style="font-size:1.1rem">Rejoindre <span id="pjf-roomname"></span></h3>
+      <label class="lbl">Ton nom</label>
+      <input type="text" id="pj-name" placeholder="Ex : Baudouin" maxlength="20" class="mb1"/>
+      <div id="pj-err"></div>
+      <div class="row">
+        <button class="btn-primary" id="btn-do-public-join">Rejoindre →</button>
+        <button class="btn-secondary" id="btn-cancel-public-join">Annuler</button>
+      </div>
+    </div>
+
     <button class="tog-btn" id="tog-combos">▼ Voir toutes les combinaisons</button>
     <div id="combos-ref" class="hidden">${renderCombosRef()}</div>
   `);
-  let selN=2,selB=100;
+
+  let selN=2,selB=100,selR=10,selVis="private",customBudget=null;
+
   on("btn-create","click",()=>{$("create-form").classList.toggle("hidden");$("join-form").classList.add("hidden");});
   on("btn-join-tog","click",()=>{$("join-form").classList.toggle("hidden");$("create-form").classList.add("hidden");});
+
   document.querySelectorAll(".nbtn").forEach(b=>{b.addEventListener("click",()=>{selN=+b.dataset.n;document.querySelectorAll(".nbtn").forEach(x=>x.className="btn-secondary size-btn nbtn");b.className="btn-primary size-btn nbtn";});});
-  document.querySelectorAll(".bbtn").forEach(b=>{b.addEventListener("click",()=>{selB=+b.dataset.v;document.querySelectorAll(".bbtn").forEach(x=>x.className="btn-secondary bbtn");b.className="btn-primary bbtn";});});
+  document.querySelectorAll(".rbtn").forEach(b=>{b.addEventListener("click",()=>{selR=+b.dataset.r;document.querySelectorAll(".rbtn").forEach(x=>x.className="btn-secondary rbtn");b.className="btn-primary rbtn";});});
+  document.querySelectorAll(".bbtn").forEach(b=>{b.addEventListener("click",()=>{
+    selB=+b.dataset.v; customBudget=null;
+    $("custom-budget-row").classList.add("hidden");
+    document.querySelectorAll(".bbtn").forEach(x=>x.className="btn-secondary bbtn");
+    b.className="btn-primary bbtn";
+  });});
+  on("btn-custom-budget-tog","click",()=>{
+    $("custom-budget-row").classList.toggle("hidden");
+    document.querySelectorAll(".bbtn").forEach(x=>x.className="btn-secondary bbtn");
+  });
+  on("custom-budget-inp","input",()=>{
+    const v=parseInt($("custom-budget-inp").value);
+    if(!isNaN(v)&&v>0){ customBudget=v; selB=v; }
+  });
+  document.querySelectorAll(".vbtn").forEach(b=>{b.addEventListener("click",()=>{
+    selVis=b.dataset.v;
+    document.querySelectorAll(".vbtn").forEach(x=>x.className="btn-secondary size-btn vbtn");
+    b.className="btn-primary size-btn vbtn";
+  });});
+
   on("btn-do-create","click",async()=>{
     const name=$("c-name").value.trim();
     if(!name) return screenLobby("Entre ton nom.");
+    if(customBudget!==null && (isNaN(customBudget)||customBudget<=0)) return screenLobby("Mise personnalisée invalide.");
     const roomId=Math.random().toString(36).slice(2,8).toUpperCase();
     const playerId=crypto.randomUUID();
     await dbSet(roomId,{
-      roomId,status:"lobby",budget:selB,maxPlayers:selN,round:1,allScores:[],
+      roomId,status:"lobby",budget:selB,maxPlayers:selN,targetRounds:selR,isPublic:selVis==="public",round:1,allScores:[],
       players:[{id:playerId,name,coins:selB,hand:[]}],
       deck:[],pot:0,auctionPhase:0,auctionPriority:0,burnedCards:[],
       auctionCard:null,currentBid:0,currentBidder:-1,lastBidder:-1,
       auctionLog:[],mancheOver:false,winner:null,winReason:"",drawPlayers:null,roundResults:null,
+      createdAt:Date.now(),
     });
     saveSession({roomId,playerId,playerName:name});
     screenWaiting({roomId,playerId,playerName:name});
   });
+
   on("btn-do-join","click",async()=>{
     const name=$("j-name").value.trim();
     const code=$("j-code").value.trim().toUpperCase();
@@ -402,8 +483,60 @@ function screenLobby(err=""){
     saveSession({roomId:code,playerId,playerName:name});
     screenWaiting({roomId:code,playerId,playerName:name});
   });
+
   let cOpen=false;
   on("tog-combos","click",()=>{cOpen=!cOpen;$("combos-ref").classList.toggle("hidden",!cOpen);$("tog-combos").textContent=cOpen?"▲ Masquer les combinaisons":"▼ Voir toutes les combinaisons";});
+
+  // ── Parties publiques ──
+  let targetRoomForJoin=null;
+  on("btn-cancel-public-join","click",()=>{$("public-join-form").classList.add("hidden");targetRoomForJoin=null;});
+  on("btn-do-public-join","click",async()=>{
+    const name=$("pj-name").value.trim();
+    if(!name||!targetRoomForJoin) return;
+    const rs=await dbGet(targetRoomForJoin);
+    if(!rs||rs.status!=="lobby"){$("pj-err").innerHTML=`<p class="error">Cette partie n'est plus disponible.</p>`;return;}
+    if(rs.players.length>=rs.maxPlayers){$("pj-err").innerHTML=`<p class="error">Salle pleine.</p>`;return;}
+    const playerId=crypto.randomUUID();
+    rs.players.push({id:playerId,name,coins:rs.budget,hand:[]});
+    await dbSet(targetRoomForJoin,rs);
+    saveSession({roomId:targetRoomForJoin,playerId,playerName:name});
+    screenWaiting({roomId:targetRoomForJoin,playerId,playerName:name});
+  });
+
+  loadPublicRooms();
+  async function loadPublicRooms(){
+    const rooms=await dbListPublicRooms();
+    const list=$("public-rooms-list");
+    if(!list) return;
+    if(rooms.length===0){ list.innerHTML=`<p class="muted">Aucune partie publique en ce moment.</p>`; return; }
+    list.innerHTML=rooms.map(r=>{
+      const topScores=[...(r.allScores||[])].sort((a,b)=>b.total-a.total).slice(0,4);
+      const scoreStr=topScores.length>0
+        ? topScores.map(s=>`${s.name}: ${s.total}`).join(" · ")
+        : "Pas encore commencée";
+      const full=r.players.length>=r.maxPlayers;
+      const joinable=r.status==="lobby"&&!full;
+      return `
+        <div class="row-sb" style="padding:.6rem 0;border-bottom:1px solid var(--bord)">
+          <div>
+            <div style="font-weight:600">${r.roomId} <span class="muted" style="font-weight:400">· ${r.players.length}/${r.maxPlayers} joueurs · objectif ${r.targetRounds||10} manches</span></div>
+            <div class="muted" style="font-size:.78rem">${scoreStr}</div>
+          </div>
+          <button class="btn-secondary pub-join-btn" data-room="${r.roomId}" data-name="${r.roomId}" ${joinable?"":"disabled"}>
+            ${r.status!=="lobby"?"En cours":full?"Pleine":"Rejoindre"}
+          </button>
+        </div>`;
+    }).join("");
+    document.querySelectorAll(".pub-join-btn").forEach(b=>{
+      b.addEventListener("click",()=>{
+        targetRoomForJoin=b.dataset.room;
+        $("pjf-roomname").textContent=b.dataset.name;
+        $("public-join-form").classList.remove("hidden");
+        $("pj-err").innerHTML="";
+        $("public-join-form").scrollIntoView({behavior:"smooth",block:"center"});
+      });
+    });
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -446,7 +579,7 @@ function screenWaiting(sess){
     const pl=$("waiting-players");const ac=$("waiting-action");
     if(!pl||!ac) return;
     pl.innerHTML=`
-      <div class="muted mb05">${rs.players.length}/${rs.maxPlayers} joueurs · Mise : ${rs.budget} 🪙${rs.maxPlayers>2?" · Double deck (14 cartes)":""}</div>
+      <div class="muted mb05">${rs.players.length}/${rs.maxPlayers} joueurs · Mise : ${rs.budget} 🪙 · Objectif : ${rs.targetRounds||10} manches gagnées${rs.maxPlayers>2?" · Double deck (14 cartes)":""}${rs.isPublic?" · 🌐 Publique":" · 🔒 Privée"}</div>
       ${rs.players.map((p,i)=>`<div class="row" style="padding:4px 0;font-family:sans-serif;font-size:.9rem">
         <span class="tag-active">●</span>
         <span style="color:${p.id===sess.playerId?"var(--goldL)":"var(--text)"}">${p.name}${p.id===sess.playerId?" (toi)":""}${i===0?" 👑":""}</span>
@@ -599,7 +732,9 @@ function renderGame(sess,rs){
 
   // Players
   const pg=$("players-grid");
-  if(pg) pg.innerHTML=rs.players.map((p,i)=>{
+  if(pg){
+    pg.style.gridTemplateColumns = numP>=3 ? "1fr 1fr" : "1fr";
+    pg.innerHTML=rs.players.map((p,i)=>{
     const isActive=!rs.mancheOver&&rs.currentBidder===i&&rs.auctionCard;
     const isMe=p.id===playerId;
     const isFull=p.hand.length>=3;
@@ -623,7 +758,8 @@ function renderGame(sess,rs){
       ${isActive&&!rs.mancheOver?`<div style="margin-top:.3rem"><span class="tag-active">● Son tour</span></div>`:""}
       ${isFull&&!rs.mancheOver?`<div style="margin-top:.3rem"><span class="tag-out">✓ Main complète</span></div>`:""}
     </div>`;
-  }).join("");
+    }).join("");
+  }
 
   // Auction area
   const aa=$("auction-area");
@@ -831,11 +967,13 @@ function afterCard(s,newPlayers,newPot,log){
     }
     const allScores=(s.allScores||[]).map(sc=>result.winner&&sc.id===result.winner.id?{...sc,total:sc.total+1}:sc);
     const bust=fp.some(p=>p.coins<=0);
+    const targetReached=(s.targetRounds||10)>0&&allScores.some(sc=>sc.total>=(s.targetRounds||10));
     return {...s,players:fp,pot:fp2,deck,burnedCards,auctionCard:null,
       mancheOver:true,winner:result.winner||null,winReason:result.reason,
       drawPlayers:result.draw||null,roundResults:result.results,allScores,
       auctionLog:[...log,"── Fin de manche ──",result.reason],
-      status:bust?"gameover":"playing"};
+      status:(bust||targetReached)?"gameover":"playing",
+      gameOverReason:bust?"bust":targetReached?"target":null};
   }
 
   if(deck.length===0){
@@ -843,11 +981,13 @@ function afterCard(s,newPlayers,newPot,log){
     const result=resolveManche(newPlayers);
     const allScores=(s.allScores||[]).map(sc=>result.winner&&sc.id===result.winner.id?{...sc,total:sc.total+1}:sc);
     const bust=newPlayers.some(p=>p.coins<=0);
+    const targetReached=(s.targetRounds||10)>0&&allScores.some(sc=>sc.total>=(s.targetRounds||10));
     return {...s,players:newPlayers,pot:newPot,deck,burnedCards,auctionCard:null,
       mancheOver:true,winner:result.winner||null,winReason:result.reason,
       drawPlayers:result.draw||null,roundResults:result.results,allScores,
       auctionLog:[...log,"── Fin de manche ──",result.reason],
-      status:bust?"gameover":"playing"};
+      status:(bust||targetReached)?"gameover":"playing",
+      gameOverReason:bust?"bust":targetReached?"target":null};
   }
 
   const newPhase=s.auctionPhase+1;
@@ -911,11 +1051,15 @@ function screenGameOver(sess,rs){
   app.classList.remove("in-game");
   const sorted=[...(rs.allScores||[])].sort((a,b)=>b.total-a.total);
   const richest=[...rs.players].sort((a,b)=>b.coins-a.coins);
+  const champion=sorted[0];
+  const reasonText = rs.gameOverReason==="target"
+    ? `${champion?.name||""} atteint l'objectif de ${rs.targetRounds||10} manches gagnées !`
+    : "Un joueur ne peut plus payer ses blindes.";
   render(`
     <div style="background:#1a0a00;border:1px solid var(--gold);border-radius:12px;padding:2rem;text-align:center;margin-bottom:1.5rem">
       <div style="font-size:2.5rem;margin-bottom:.5rem">👑</div>
       <h2 class="goldL" style="margin-bottom:.4rem">Fin de partie</h2>
-      <p class="muted">Un joueur ne peut plus payer ses blindes.</p>
+      <p class="muted">${reasonText}</p>
     </div>
     <div class="two-col mb1">
       <div class="box">
@@ -937,6 +1081,49 @@ function screenGameOver(sess,rs){
   `);
   on("btn-restart","click",()=>{clearSession();screenLobby();});
 }
+
+// ═══════════════════════════════════════════════
+// RÈGLES (pop-up)
+// ═══════════════════════════════════════════════
+function showRulesModal(){
+  const ma=$("rules-modal-area");
+  if(!ma) return;
+  ma.innerHTML=`
+    <div class="modal-bg" id="rules-overlay">
+      <div class="modal" style="max-width:640px;text-align:left;max-height:85vh;overflow-y:auto">
+        <h3 style="text-align:center">📜 Règles du jeu</h3>
+        <div class="sans" style="font-size:.85rem;line-height:1.6;color:var(--text)">
+          <p class="muted mb1">Le jeu comprend 7 cartes de figures, 14 combinaisons, et des pièces servant aux enchères. Chaque carte a une valeur numéraire propre. On gagne en réalisant une combinaison, ou en ayant la plus forte valeur numérique si aucune combinaison ne subsiste.</p>
+
+          <h4 class="goldL mb05">👑 Combinaisons royales</h4>
+          <p class="muted mb1">Les plus prestigieuses (3 combinaisons). Annulées par toute combinaison némésis présente.</p>
+
+          <h4 class="goldL mb05">⚜️ Combinaisons classiques</h4>
+          <p class="muted mb1">Combinaisons charnières (8 combinaisons). Ne sont jamais annulées par les némésis.</p>
+
+          <h4 class="goldL mb05">☠️ Combinaisons némésis</h4>
+          <p class="muted mb1">Moins puissantes mais leur présence annule toute combinaison royale en jeu. Une némésis ne s'annule jamais elle-même et reste active — elle peut remporter la manche si aucune royale ou classique ne subsiste.</p>
+
+          <h4 class="goldL mb05">Mise en place (2 joueurs)</h4>
+          <p class="muted mb1">Chaque joueur mise un montant égal. Au début de chaque manche, un joueur pose la petite blinde, l'autre la grosse blinde (qui a priorité sur la première enchère). Chaque joueur reçoit une carte cachée ; le reste forme la pioche.</p>
+
+          <h4 class="goldL mb05">Phase d'enchères</h4>
+          <p class="muted mb1">À chaque phase, une carte est révélée. Le joueur prioritaire ouvre l'enchère ou passe. S'il passe, l'autre récupère la carte gratuitement. S'il ouvre, les joueurs surenchérissent jusqu'à abandon — le dernier proposant remporte la carte et paie sa mise, qui rejoint le pot (l'argent engagé est définitivement perdu, même en cas d'abandon). La priorité alterne à chaque carte. La manche s'arrête lorsque chaque joueur a 3 cartes.</p>
+
+          <h4 class="goldL mb05">Résolution</h4>
+          <p class="muted mb1">Chaque joueur révèle ses 3 cartes. Les némésis annulent les royales présentes (qui sortent du classement). Puis : royale > classique > némésis > valeur numérique totale en cas d'égalité de combinaison ou d'absence de combinaison. En cas d'égalité parfaite, le pot est partagé.</p>
+
+          <h4 class="goldL mb05">Variante 3-4 joueurs</h4>
+          <p class="muted mb1">Le deck est doublé (14 cartes, 2 exemplaires de chaque). Un joueur est grosse blinde, tous les autres posent une petite blinde. À 3 joueurs, une carte est brûlée face visible au début (pour remplacer le 4e joueur absent), et une seconde dès que chacun a obtenu sa 2e carte. Quand un joueur atteint 3 cartes, il sort des enchères ; les autres continuent jusqu'à compléter leur main.</p>
+        </div>
+        <div class="row" style="justify-content:center;margin-top:1rem">
+          <button class="btn-primary" id="btn-close-rules">Fermer</button>
+        </div>
+      </div>
+    </div>`;
+  on("btn-close-rules","click",()=>{const m=$("rules-modal-area");if(m)m.innerHTML="";});
+}
+on("btn-rules","click",showRulesModal);
 
 // ═══════════════════════════════════════════════
 // BOOT

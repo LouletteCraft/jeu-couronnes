@@ -243,16 +243,28 @@ function resolveManche(players) {
   if(allCombos.length>0){
     // Tri : royal rank 1-3 < classic rank 4-11 < nemesis rank 12-14
     const best=allCombos.reduce((b,c)=>c.combo.rank<b.combo.rank?c:b);
-    // Égalité exacte possible
+    // Égalité exacte possible : on départage par les jetons restants (le plus économe l'emporte)
     const tied=allCombos.filter(p=>p.combo.rank===best.combo.rank);
-    if(tied.length>1) return {winner:null,draw:tied,reason:`Égalité entre ${tied.map(p=>p.name).join(" & ")} avec « ${best.combo.name} » ! Le pot est partagé.`,results:active};
+    if(tied.length>1){
+      const maxCoins=Math.max(...tied.map(p=>p.coins));
+      const stillTied=tied.filter(p=>p.coins===maxCoins);
+      if(stillTied.length>1) return {winner:null,draw:stillTied,reason:`Égalité parfaite entre ${stillTied.map(p=>p.name).join(" & ")} avec « ${best.combo.name} » (même nombre de jetons restants : ${maxCoins}).`,results:active};
+      const w=stillTied[0];
+      return {winner:w,draw:null,reason:`${w.name} remporte la manche avec « ${best.combo.name} » — départagé par ses jetons restants (${w.coins}) face à ${tied.filter(p=>p.id!==w.id).map(p=>p.name).join(", ")}.`,results:active};
+    }
     return {winner:best,draw:null,reason:`${best.name} remporte la manche avec « ${best.combo.name} »`,results:active};
   }
   // Pas de combinaison : valeur numérique
   const ranked=cont.map(p=>({...p,total:p.hand.reduce((s,c)=>s+c.value,0)}));
   const maxV=Math.max(...ranked.map(p=>p.total));
   const tied=ranked.filter(p=>p.total===maxV);
-  if(tied.length>1) return {winner:null,draw:tied,reason:`Égalité ! Le pot est partagé. (${maxV} pts chacun)`,results:active};
+  if(tied.length>1){
+    const maxCoins=Math.max(...tied.map(p=>p.coins));
+    const stillTied=tied.filter(p=>p.coins===maxCoins);
+    if(stillTied.length>1) return {winner:null,draw:stillTied,reason:`Égalité parfaite ! (${maxV} pts et ${maxCoins} jetons chacun)`,results:active};
+    const w=stillTied[0];
+    return {winner:w,draw:null,reason:`${w.name} remporte la manche par valeur numérique (${maxV} pts) — départagé par ses jetons restants (${w.coins}).`,results:active};
+  }
   const w=ranked.reduce((b,c)=>c.total>b.total?c:b);
   return {winner:w,draw:null,reason:`${w.name} remporte la manche par valeur numérique (${w.total} pts)`,results:active};
 }
@@ -435,7 +447,7 @@ function screenLobby(err=""){
     await dbSet(roomId,{
       roomId,status:"lobby",maxPlayers:selN,targetRounds:selR,isPublic:selVis==="public",round:1,allScores:[],
       players:[{id:playerId,name,coins:20,hand:[]}],
-      deck:[],pot1:0,pot2:0,auctionPhase:0,tokenIdx:0,burnedCards:[],
+      deck:[],auctionPhase:0,tokenIdx:0,burnedCards:[],
       auctionCard:null,currentBid:0,currentBidder:-1,lastBidder:-1,
       auctionLog:[],mancheOver:false,winner:null,winReason:"",drawPlayers:null,roundResults:null,
       createdAt:Date.now(),
@@ -581,14 +593,8 @@ function buildRoundState(rs, roundNumber, tokenIdx) {
   let deck=[...allCards];
   let burnedCards=[];
 
-  // Jetons fixes : chaque joueur récupère 20 jetons à chaque manche
-  // Blinde commune fixe (2 jetons) versée par tous avant de regarder sa carte — base du pot 1
-  const blind=2;
-  let basePot=0;
-  const players=rs.players.map((p,i)=>{
-    basePot+=blind;
-    return {...p,coins:20-blind,hand:[dealt[i]]};
-  });
+  // Jetons fixes : chaque joueur récupère 20 jetons à chaque manche (budget d'enchères, pas un enjeu de gain)
+  const players=rs.players.map((p,i)=>({...p,coins:20,hand:[dealt[i]]}));
 
   // À 3 joueurs : le croupier met 2 cartes hors jeu face visible dès le départ
   if(numP===3){
@@ -597,9 +603,8 @@ function buildRoundState(rs, roundNumber, tokenIdx) {
   }
 
   const log=[
-    `── Manche ${roundNumber} — Chaque joueur reçoit 20 jetons et une carte cachée, et verse une blinde commune de ${blind} 🪙.`,
+    `── Manche ${roundNumber} — Chaque joueur reçoit 20 jetons et une carte cachée.`,
     numP===3?`🔥 Le croupier met 2 cartes hors jeu face visible.`:null,
-    `Premier tour de mise — ${players[tokenIdx].name} a le token.`,
   ].filter(Boolean);
 
   return {
@@ -607,15 +612,14 @@ function buildRoundState(rs, roundNumber, tokenIdx) {
     status:"playing",
     round:roundNumber,
     players,deck,burnedCards,
-    pot1:basePot,pot2:0,
     foldedRound1:[],foldedRound2:[],
     bettingRound:1,
     tokenIdx,
-    stakeAmount:0,stakeBy:-1,respondedBy:[],bettingResolved:false,
     auctionCard:null,
     auctionPhase:0,
     auctionPriority:tokenIdx,
     currentBid:0,currentBidder:-1,lastBidder:-1,
+    cardOutOfAuction:[],cardBidders:[],
     mancheOver:false,winner:null,winReason:"",drawPlayers:null,roundResults:null,
     auctionLog:log,
     allScores:roundNumber===1?rs.players.map(p=>({id:p.id,name:p.name,total:0})):rs.allScores,
@@ -627,7 +631,7 @@ async function doStartGame(roomId){
   const rs=await dbGet(roomId);
   if(!rs||rs.players.length<2) return;
   const built=buildRoundState(rs,1,0);
-  await dbSet(roomId,startBettingTurn(built));
+  await dbSet(roomId,startAuctionBlock(built,built.auctionLog));
 }
 
 // ═══════════════════════════════════════════════
@@ -680,24 +684,21 @@ function renderGame(sess,rs){
   const {roomId,playerId}=sess;
   const myIdx=rs.players.findIndex(p=>p.id===playerId);
   const me=rs.players[myIdx];
-  const isBetting=!rs.bettingResolved&&!rs.auctionCard&&!rs.mancheOver;
-  const isMyBetTurn=isBetting&&rs.currentBidder===myIdx;
-  const isMyAuctionTurn=!isBetting&&rs.currentBidder===myIdx&&!rs.mancheOver&&rs.auctionCard;
+  const isMyAuctionTurn=rs.currentBidder===myIdx&&!rs.mancheOver&&rs.auctionCard;
   const isFirstBid=rs.lastBidder===-1;
   const numP=rs.players.length;
   const foldKey=rs.bettingRound===2?"foldedRound2":"foldedRound1";
   const folded=rs[foldKey]||[];
   const iAmFolded=folded.includes(playerId);
 
-  // Header : pots + score, en haut à droite
+  // Header : score + jetons restants, en haut à droite
   const hdr=$("game-header");
   if(hdr){
     const scoresHtml=(rs.allScores||[]).map(s=>`<span style="margin-right:.6rem"><span class="muted">${s.name}:</span> <strong class="goldL">${s.total}</strong></span>`).join("");
     hdr.innerHTML=`
-      <span class="sans gold" style="font-size:.85rem">Manche ${rs.round} · <span style="letter-spacing:.1em">${roomId}</span></span>
+      <span class="sans gold" style="font-size:.85rem">Manche ${rs.round} · <span style="letter-spacing:.1em">${roomId}</span> · ${rs.bettingRound===1?"1er":"2e"} bloc d'enchères</span>
       <div class="row" style="gap:.6rem">
         <span class="box sans" style="padding:.35rem .9rem;font-size:.85rem;margin:0">${scoresHtml||"<span class='muted'>Scores : 0 partout</span>"}</span>
-        <span class="box" style="padding:.35rem .9rem;font-family:sans-serif;font-size:.9rem;margin:0">Pot 1 : <strong class="goldL">${rs.pot1||0} 🪙</strong>${(rs.pot2||0)>0||rs.bettingRound===2?` · Pot 2 : <strong class="goldL">${rs.pot2||0} 🪙</strong>`:""}</span>
         <button class="btn-warn" id="btn-abandon-req" style="font-size:.78rem;padding:.35rem .8rem">⚑ Abandon</button>
       </div>`;
   }
@@ -720,7 +721,7 @@ function renderGame(sess,rs){
   if(pg){
     pg.style.gridTemplateColumns = numP>=3 ? "1fr 1fr" : "1fr";
     pg.innerHTML=rs.players.map((p,i)=>{
-    const isActive=!rs.mancheOver&&rs.currentBidder===i&&(rs.auctionCard||isBetting);
+    const isActive=!rs.mancheOver&&rs.currentBidder===i&&rs.auctionCard;
     const isMe=p.id===playerId;
     const isFull=p.hand.length>=3;
     const isFolded=folded.includes(p.id);
@@ -748,52 +749,11 @@ function renderGame(sess,rs){
     }).join("");
   }
 
-  // Zone principale : tour de mise OU enchère carte par carte
+  // Zone principale : enchère carte par carte
   const aa=$("auction-area");
   if(aa){
     if(rs.mancheOver){
       aa.innerHTML="";
-    } else if(isBetting){
-      const player=rs.players[rs.currentBidder];
-      const isOpen=rs.stakeBy===-1;
-      let actionHtml="";
-      if(isMyBetTurn){
-        if(isOpen){
-          actionHtml=`
-            <div class="row">
-              <button class="btn-secondary" id="btn-bet-check">Check (0)</button>
-              <input type="number" id="bet-inp" min="1" max="${me.coins}" placeholder="Miser…" style="width:100px"/>
-              <button class="btn-primary" id="btn-bet-open">Miser</button>
-            </div>`;
-        } else {
-          actionHtml=`
-            <div class="row">
-              <button class="btn-secondary" id="btn-bet-call">Suivre (${rs.stakeAmount} 🪙)</button>
-              <input type="number" id="bet-inp" min="${rs.stakeAmount+1}" max="${me.coins}" placeholder="> ${rs.stakeAmount}" style="width:100px"/>
-              <button class="btn-primary" id="btn-bet-raise">Relancer</button>
-              <button class="btn-danger" id="btn-bet-fold">Se retirer</button>
-            </div>`;
-        }
-      } else {
-        actionHtml=`<p class="muted">En attente de <strong style="color:var(--text)">${player?.name}</strong>…</p>`;
-      }
-      aa.innerHTML=`
-        <div class="box ${isMyBetTurn?"accent":""}">
-          <div class="gold sans" style="font-weight:600;margin-bottom:.5rem">
-            ${rs.bettingRound===1?"Premier":"Deuxième"} tour de mise ${rs.stakeAmount>0?`— mise actuelle : ${rs.stakeAmount} 🪙`:""}
-          </div>
-          ${actionHtml}
-        </div>`;
-      if(isMyBetTurn){
-        if(isOpen){
-          on("btn-bet-check","click",()=>mutateGame(sess.roomId,s=>doBetOpen(s,0)));
-          on("btn-bet-open","click",()=>{const a=parseInt($("bet-inp")?.value);if(!isNaN(a)&&a>0)mutateGame(sess.roomId,s=>doBetOpen(s,a));});
-        } else {
-          on("btn-bet-call","click",()=>mutateGame(sess.roomId,doBetCall));
-          on("btn-bet-raise","click",()=>{const a=parseInt($("bet-inp")?.value);if(!isNaN(a)&&a>rs.stakeAmount)mutateGame(sess.roomId,s=>doBetRaise(s,a));});
-          on("btn-bet-fold","click",()=>mutateGame(sess.roomId,doBetFold));
-        }
-      }
     } else if(rs.auctionCard){
       const isDuel=numP===2;
       const bidSection=isMyAuctionTurn?`
@@ -925,9 +885,9 @@ function resetToLobby(s){
     status:"lobby",
     players:s.players.map(p=>({...p,hand:[],coins:20})),
     abandonVotes:[],
-    deck:[],pot1:0,pot2:0,foldedRound1:[],foldedRound2:[],
+    deck:[],foldedRound1:[],foldedRound2:[],
     auctionCard:null,auctionPhase:0,bettingRound:1,
-    stakeAmount:0,stakeBy:-1,respondedBy:[],bettingResolved:false,
+    cardOutOfAuction:[],cardBidders:[],
     mancheOver:false,winner:null,winReason:"",drawPlayers:null,roundResults:null,
     auctionLog:[],allScores:[],burnedCards:[],round:1,tokenIdx:0,
   };
@@ -977,59 +937,29 @@ function checkMidBurn(s,newPlayers){
 }
 
 // ── RÉSOLUTION FINALE (après le 2e bloc d'enchères) ──────────────────────
-function resolveBothPots(s,newPlayers,deck,burnedCards,log){
-  // Joueurs encore en jeu pour le pot 2 = ceux qui n'ont pas plié au round 2
-  const inPot2 = newPlayers.filter(p=>!(s.foldedRound2||[]).includes(p.id));
-  // Joueurs en jeu pour le pot 1 = tous sauf ceux pliés au round 1 (qui ont récupéré leur mise et ne jouent pas la manche du tout)
-  const inPot1 = newPlayers.filter(p=>!(s.foldedRound1||[]).includes(p.id));
+function resolveRound(s,newPlayers,deck,burnedCards,log){
+  // Tous les joueurs encore en jeu pour la résolution = ceux qui n'ont pas abandonné au round 1
+  // (un retrait au round 1 signifie qu'il ne reste qu'un seul joueur, déjà géré ailleurs avant d'arriver ici)
+  const inGame = newPlayers.filter(p=>!(s.foldedRound1||[]).includes(p.id));
 
-  let fp=newPlayers;
   let logLines=[...log,"── Révélation et résolution ──"];
-  let winnerOverall=null, reasonOverall="";
+  let result=null;
 
-  // Résolution Pot 1 (tous les joueurs encore en jeu, y compris ceux retirés au round 2)
-  let result1=null;
-  if(s.pot1>0 && inPot1.length>0){
-    result1=resolveManche(inPot1);
-    if(result1.draw){
-      const share=Math.floor(s.pot1/result1.draw.length);
-      fp=fp.map(p=>result1.draw.find(d=>d.id===p.id)?{...p,coins:p.coins+share}:p);
-    } else if(result1.winner){
-      fp=fp.map(p=>p.id===result1.winner.id?{...p,coins:p.coins+s.pot1}:p);
-    }
-    logLines.push(`Pot 1 (${s.pot1} 🪙) : ${result1.reason}`);
+  if(inGame.length>0){
+    result=resolveManche(inGame);
+    logLines.push(result.reason);
   }
 
-  // Résolution Pot 2 (uniquement les joueurs encore en jeu au round 2)
-  let result2=null;
-  if(s.pot2>0 && inPot2.length>0){
-    result2=resolveManche(inPot2);
-    if(result2.draw){
-      const share=Math.floor(s.pot2/result2.draw.length);
-      fp=fp.map(p=>result2.draw.find(d=>d.id===p.id)?{...p,coins:p.coins+share}:p);
-    } else if(result2.winner){
-      fp=fp.map(p=>p.id===result2.winner.id?{...p,coins:p.coins+s.pot2}:p);
-    }
-    logLines.push(`Pot 2 (${s.pot2} 🪙) : ${result2.reason}`);
-  }
-
-  // Score : la victoire de manche (pour le compteur de manches gagnées) va au vainqueur du pot le plus gros,
-  // ou pot2 s'il existe (dernière résolution), sinon pot1.
-  const primary = result2?.winner ? result2 : result1;
-  winnerOverall = primary?.winner || null;
-  reasonOverall = primary ? primary.reason : "Aucun pot à résoudre.";
-
-  const allScores=(s.allScores||[]).map(sc=>winnerOverall&&sc.id===winnerOverall.id?{...sc,total:sc.total+1}:sc);
+  const allScores=(s.allScores||[]).map(sc=>result?.winner&&sc.id===result.winner.id?{...sc,total:sc.total+1}:sc);
   const targetReached=(s.targetRounds||10)>0&&allScores.some(sc=>sc.total>=(s.targetRounds||10));
 
   return {
-    ...s,players:fp,deck,burnedCards,auctionCard:null,
+    ...s,players:newPlayers,deck,burnedCards,auctionCard:null,
     mancheOver:true,
-    winner:winnerOverall,
-    winReason:reasonOverall,
-    drawPlayers:(result1?.draw||result2?.draw)?[...(result1?.draw||[]),...(result2?.draw||[])]:null,
-    roundResults:(result2||result1)?.results||null,
-    pot1Result:result1, pot2Result:result2,
+    winner:result?.winner||null,
+    winReason:result?.reason||"Aucun joueur en lice.",
+    drawPlayers:result?.draw||null,
+    roundResults:result?.results||null,
     allScores,
     auctionLog:[...logLines],
     status:targetReached?"gameover":"playing",
@@ -1065,28 +995,29 @@ function afterCard(s,newPlayers,log){
     }
   }
 
-  // Bloc 1 (chacun a 2 cartes) → ouvrir tour de mise 2
+  // Bloc 1 (chacun a 2 cartes) → enchaîner directement sur le bloc d'enchères 2
   // Bloc 2 (chacun a 3 cartes) → résolution finale
   const target = s.bettingRound===1 ? 2 : 3;
   const allReachedTarget = newPlayers.filter(p=>activePlayers(s).find(ap=>ap.id===p.id)).every(p=>p.hand.length>=target);
 
   if(allReachedTarget){
     if(target===3){
-      return resolveBothPots(s,newPlayers,deck,burnedCards,log);
+      return resolveRound(s,newPlayers,deck,burnedCards,log);
     }
-    // Fin du bloc d'enchères 1 → ouvrir le 2e tour de mise
-    return {
+    // Fin du bloc d'enchères 1 → enchaîner directement sur le bloc d'enchères 2 (pas de tour de mise)
+    const nextState={
       ...s,players:newPlayers,deck,burnedCards,auctionCard:null,
-      bettingRound:2,stakeAmount:0,stakeBy:-1,respondedBy:[],bettingResolved:false,
+      bettingRound:2,
       cardOutOfAuction:[],cardBidders:[],
       currentBid:0,currentBidder:-1,lastBidder:-1,
-      auctionLog:[...log,"── Deuxième tour de mise ──",`${newPlayers[s.tokenIdx].name} a le token.`],
+      auctionLog:[...log,"── Deuxième bloc d'enchères ──"],
     };
+    return startAuctionBlock(nextState,nextState.auctionLog);
   }
 
   if(deck.length===0){
     // Sécurité : plus de cartes, on force la résolution
-    return resolveBothPots(s,newPlayers,deck,burnedCards,log);
+    return resolveRound(s,newPlayers,deck,burnedCards,log);
   }
 
   // Continuer le bloc d'enchères : révéler la carte suivante
@@ -1099,7 +1030,7 @@ function afterCard(s,newPlayers,log){
   }
   if(priorityIdx===-1){
     // Plus personne d'éligible mais target pas atteint (cas limite) : forcer résolution
-    return resolveBothPots(s,newPlayers,deck,burnedCards,log);
+    return resolveRound(s,newPlayers,deck,burnedCards,log);
   }
 
   const card=deck[0];const deckNext=deck.slice(1);
@@ -1110,116 +1041,10 @@ function afterCard(s,newPlayers,log){
     auctionLog:[...log,`── Carte révélée : ${card.name} (${card.symbol}) — Priorité : ${newPlayers[priorityIdx].name}`]};
 }
 
-// ── TOURS DE MISE (avant chaque bloc d'enchères) ──────────────────────────
-// Le token propose un montant (ou checke/passe), l'autre suit/relance/se retire.
-// On gère N joueurs : chaque joueur doit répondre au stake courant (suivre / relancer / se retirer)
-// jusqu'à ce que tous les joueurs encore en lice aient répondu au même montant.
-function startBettingTurn(s){
-  return {...s,stakeAmount:0,stakeBy:-1,respondedBy:[],bettingResolved:false,currentBidder:s.tokenIdx};
-}
-
-function doBetOpen(s,amount){
-  // Le token (ou joueur courant) ouvre la mise avec un montant (peut être 0 = check)
-  const idx=s.currentBidder!==undefined&&s.currentBidder>=0?s.currentBidder:s.tokenIdx;
-  const player=s.players[idx];
-  if(amount<0||amount>player.coins) return s;
-  const active=activePlayers(s).filter(p=>!(s.bettingRound===2?(s.foldedRound2||[]):[]).includes(p.id));
-  const nextIdx=nextActiveBettor(s,idx);
-  const log=amount===0
-    ? `${player.name} ne mise rien (check).`
-    : `${player.name} mise ${amount} 🪙.`;
-  return {...s,stakeAmount:amount,stakeBy:idx,respondedBy:[idx],
-    currentBidder:nextIdx,
-    auctionLog:[...s.auctionLog,log]};
-}
-
-function nextActiveBettor(s,fromIdx){
-  const n=s.players.length;
-  const foldedThisRound = s.bettingRound===2 ? (s.foldedRound2||[]) : (s.foldedRound1||[]);
-  for(let step=1;step<=n;step++){
-    const i=(fromIdx+step)%n;
-    if(!foldedThisRound.includes(s.players[i].id)) return i;
-  }
-  return -1;
-}
-
-function doBetCall(s){
-  // Le joueur courant suit la mise
-  const idx=s.currentBidder;
-  const respondedBy=[...new Set([...(s.respondedBy||[]),idx])];
-  const log=[...s.auctionLog,`${s.players[idx].name} suit (${s.stakeAmount} 🪙).`];
-  return finishOrAdvanceBetting(s,idx,respondedBy,log);
-}
-
-function doBetRaise(s,amount){
-  const idx=s.currentBidder;
-  const player=s.players[idx];
-  if(amount<=s.stakeAmount||amount>player.coins) return s;
-  const nextIdx=nextActiveBettor(s,idx);
-  return {...s,stakeAmount:amount,stakeBy:idx,respondedBy:[idx],
-    currentBidder:nextIdx,
-    auctionLog:[...s.auctionLog,`${player.name} relance à ${amount} 🪙.`]};
-}
-
-function doBetFold(s){
-  const idx=s.currentBidder;
-  const player=s.players[idx];
-  const foldKey = s.bettingRound===2 ? "foldedRound2" : "foldedRound1";
-  const folded=[...new Set([...(s[foldKey]||[]),player.id])];
-  const log=[...s.auctionLog,`${player.name} se retire${s.bettingRound===1?" — récupère sa mise et est hors jeu pour cette manche.":" — récupère sa mise du second tour, reste en jeu pour le pot 1 uniquement."}`];
-
-  let next={...s,[foldKey]:folded,auctionLog:log};
-
-  // Vérifier s'il ne reste qu'un seul joueur actif → la manche s'arrête immédiatement (pas de jeu)
-  const stillIn=s.players.filter(p=>!folded.includes(p.id));
-  if(stillIn.length<=1){
-    if(s.bettingRound===1){
-      // Manche annulée, personne ne joue — retour direct à une nouvelle manche
-      next.auctionLog=[...log,"── Un seul joueur reste en lice : la manche ne se joue pas. ──"];
-      next.mancheOver=true;
-      next.winner=stillIn[0]||null;
-      next.winReason=stillIn[0]?`${stillIn[0].name} remporte le pot par forfait.`:"Manche annulée.";
-      if(stillIn[0]){
-        next.players=s.players.map(p=>p.id===stillIn[0].id?{...p,coins:p.coins+s.pot1+s.pot2}:p);
-      }
-      return next;
-    } else {
-      // Round 2 : le pot 2 ne sera pas joué, mais le pot 1 doit toujours être résolu à la fin
-      return advanceToNextAuctionOrResolve(next,idx);
-    }
-  }
-
-  return finishOrAdvanceBetting(next,idx,[...(s.respondedBy||[]),idx],log);
-}
-
-function finishOrAdvanceBetting(s,idx,respondedBy,log){
-  const foldKey = s.bettingRound===2 ? "foldedRound2" : "foldedRound1";
-  const folded=s[foldKey]||[];
-  const stillIn=s.players.filter(p=>!folded.includes(p.id));
-  const allResponded=stillIn.every(p=>respondedBy.includes(s.players.findIndex(pp=>pp.id===p.id)));
-
-  if(allResponded){
-    // Tour de mise terminé : le montant convenu (stakeAmount) est payé par tous les joueurs encore en lice
-    const potKey = s.bettingRound===1 ? "pot1" : "pot2";
-    let players=s.players;
-    let addedToPot=0;
-    stillIn.forEach(p=>{
-      const i=s.players.findIndex(pp=>pp.id===p.id);
-      players=players.map((pp,ii)=>ii===i?{...pp,coins:pp.coins-s.stakeAmount}:pp);
-      addedToPot+=s.stakeAmount;
-    });
-    const newLog=[...log,`Tour de mise terminé — ${s.stakeAmount} 🪙 par joueur ajoutés au pot ${s.bettingRound}.`];
-    const newState={...s,players,[potKey]:s[potKey]+addedToPot,respondedBy,bettingResolved:true};
-    return startAuctionBlock(newState,newLog);
-  }
-
-  return {...s,respondedBy,currentBidder:nextActiveBettor(s,idx)};
-}
-
 function startAuctionBlock(s,log){
   // Démarre le bloc d'enchères carte par carte (révélation de la première carte)
   if(s.deck.length===0){
-    return resolveBothPots(s,s.players,s.deck,s.burnedCards,log);
+    return resolveRound(s,s.players,s.deck,s.burnedCards,log);
   }
   const card=s.deck[0];const deck=s.deck.slice(1);
   const numP=s.players.length;
@@ -1236,31 +1061,7 @@ function startAuctionBlock(s,log){
   return {...s,deck,auctionCard:card,auctionPhase:1,
     currentBid:0,currentBidder:priorityIdx,lastBidder:-1,
     cardOutOfAuction:[],cardBidders:[],
-    auctionLog:[...log,"── Bloc d'enchères ──",`── Carte révélée : ${card.name} (${card.symbol}) — Priorité : ${s.players[priorityIdx].name}`]};
-}
-
-function advanceToNextAuctionOrResolve(s,foldedIdx){
-  // Utilisé quand un joueur se retire au round 2 betting et qu'il ne reste qu'un joueur :
-  // le pot 2 ne sera pas disputé pendant le bloc d'enchères, mais on doit quand même
-  // continuer à distribuer les cartes restantes pour atteindre 3 cartes chacun (pot 1 à résoudre).
-  // Simplification : on saute directement à la résolution si un seul joueur reste pour pot2,
-  // en distribuant les cartes restantes gratuitement à tous pour compléter leur main à 3.
-  let players=[...s.players];
-  let deck=[...s.deck];
-  let log=[...s.auctionLog];
-  const target=3;
-  // Distribution simple : chaque joueur pas encore à 3 cartes pioche gratuitement
-  while(players.some(p=>p.hand.length<target) && deck.length>0){
-    players=players.map(p=>{
-      if(p.hand.length<target){
-        const c=deck.shift();
-        log.push(`${p.name} reçoit ${c.name} (${c.symbol}) gratuitement (pot 2 non disputé).`);
-        return {...p,hand:[...p.hand,c]};
-      }
-      return p;
-    });
-  }
-  return resolveBothPots(s,players,deck,s.burnedCards,log);
+    auctionLog:[...log,"── Carte révélée : "+card.name+" ("+card.symbol+") — Priorité : "+s.players[priorityIdx].name]};
 }
 
 // ── ENCHÈRES CARTE PAR CARTE (au sein d'un bloc) ──────────────────────────
@@ -1344,14 +1145,13 @@ function doFold(s){
     const {auctionCard,currentBid}=s;
     let np=players.map((p,i)=>i===lastBidder?{...p,hand:[...p.hand,auctionCard],coins:p.coins-currentBid}:p);
     let dk=[...s.deck];
-    const potKey=s.bettingRound===1?"pot1":"pot2";
-    let log=[...s.auctionLog,`${players[currentBidder].name} abandonne l'enchère. ${players[lastBidder].name} remporte la carte pour ${currentBid} 🪙.`];
+    let log=[...s.auctionLog,`${players[currentBidder].name} abandonne l'enchère. ${players[lastBidder].name} remporte la carte pour ${currentBid} 🪙 (jetons perdus).`];
     if(dk.length>0){
       const c=dk.shift();
       np=np.map((p,i)=>i===currentBidder?{...p,hand:[...p.hand,c]}:p);
       log.push(`${players[currentBidder].name} reçoit gratuitement une carte cachée de la pioche.`);
     }
-    return afterCard({...s,deck:dk,[potKey]:s[potKey]+currentBid},np,log);
+    return afterCard({...s,deck:dk},np,log);
   }
   // 3-4 joueurs : ce joueur abandonne l'enchère sur CETTE carte (il ne reçoit rien immédiatement)
   return tableAuctionAdvance(s,currentBidder,`${players[currentBidder].name} abandonne l'enchère sur cette carte.`,true);
@@ -1367,13 +1167,12 @@ function tableAuctionAdvance(s,currentBidder,logLine,isFold){
   const stillInCard=s.players.map((p,i)=>i).filter(i=>!folded.includes(s.players[i].id)&&!cardOut.includes(i));
 
   if(stillInCard.length<=1){
-    // Un seul joueur reste en lice pour cette carte → il la remporte
+    // Un seul joueur reste en lice pour cette carte → il la remporte (ses jetons enchéris sont perdus)
     const winnerIdx=stillInCard[0];
     const amount=s.currentBid||0;
-    const potKey=s.bettingRound===1?"pot1":"pot2";
     let np=s.players.map((p,i)=>i===winnerIdx?{...p,hand:[...p.hand,s.auctionCard],coins:p.coins-amount}:p);
-    const log=[...s.auctionLog,logLine,`${np[winnerIdx].name} remporte la carte${amount>0?` pour ${amount} 🪙`:" (personne n'a enchéri)"}.`];
-    return afterCard({...s,[potKey]:s[potKey]+amount,cardOutOfAuction:[],cardBidders:[]},np,log);
+    const log=[...s.auctionLog,logLine,`${np[winnerIdx].name} remporte la carte${amount>0?` pour ${amount} 🪙 (jetons perdus)`:" (personne n'a enchéri)"}.`];
+    return afterCard({...s,cardOutOfAuction:[],cardBidders:[]},np,log);
   }
 
   const nextIdx=nextTableBidder(s,currentBidder,cardOut);
@@ -1381,9 +1180,8 @@ function tableAuctionAdvance(s,currentBidder,logLine,isFold){
     // Sécurité : ne devrait pas arriver si stillInCard.length>1
     const winnerIdx=stillInCard[0];
     const amount=s.currentBid||0;
-    const potKey=s.bettingRound===1?"pot1":"pot2";
     let np=s.players.map((p,i)=>i===winnerIdx?{...p,hand:[...p.hand,s.auctionCard],coins:p.coins-amount}:p);
-    return afterCard({...s,[potKey]:s[potKey]+amount,cardOutOfAuction:[],cardBidders:[]},np,[...s.auctionLog,logLine]);
+    return afterCard({...s,cardOutOfAuction:[],cardBidders:[]},np,[...s.auctionLog,logLine]);
   }
   return {...s,cardOutOfAuction:cardOut,currentBidder:nextIdx,auctionLog:[...s.auctionLog,logLine]};
 }
@@ -1392,7 +1190,7 @@ function doNextRound(s){
   const numP=s.players.length;
   const nextToken=(s.tokenIdx+1)%numP;
   const built=buildRoundState({...s,players:s.players.map(p=>({...p,hand:[]}))},s.round+1,nextToken);
-  return startBettingTurn(built);
+  return startAuctionBlock(built,built.auctionLog);
 }
 
 // ═══════════════════════════════════════════════
@@ -1433,7 +1231,7 @@ function showRulesModal(){
       <div class="modal" style="max-width:640px;text-align:left;max-height:85vh;overflow-y:auto">
         <h3 style="text-align:center">📜 Règles du jeu</h3>
         <div class="sans" style="font-size:.85rem;line-height:1.6;color:var(--text)">
-          <p class="muted mb1">Le jeu comprend 7 cartes de figures, 14 combinaisons, et des pièces servant aux enchères. Chaque carte a une valeur numéraire propre. On gagne en réalisant une combinaison, ou en ayant la plus forte valeur numérique si aucune combinaison ne subsiste.</p>
+          <p class="muted mb1">Le jeu comprend 7 cartes de figures et 14 combinaisons. Chaque carte a une valeur numéraire propre. À chaque manche, chaque joueur reçoit 20 jetons (récupérés intégralement à la manche suivante) qui servent uniquement à enchérir sur les cartes — ils n'ont pas d'autre enjeu. On gagne la manche en réalisant la meilleure combinaison, ou en ayant la plus forte valeur numérique si personne n'a de combinaison ; en cas d'égalité parfaite, c'est le nombre de jetons restants qui départage.</p>
 
           <h4 class="goldL mb05">👑 Combinaisons royales</h4>
           <p class="muted mb1">Les plus prestigieuses (3 combinaisons). Annulées par toute combinaison némésis présente.</p>
@@ -1444,17 +1242,17 @@ function showRulesModal(){
           <h4 class="goldL mb05">☠️ Combinaisons némésis</h4>
           <p class="muted mb1">Moins puissantes mais leur présence annule toute combinaison royale en jeu. Une némésis ne s'annule jamais elle-même et reste active — elle peut remporter la manche si aucune royale ou classique ne subsiste.</p>
 
-          <h4 class="goldL mb05">Mise en place (2 joueurs)</h4>
-          <p class="muted mb1">Chaque joueur mise un montant égal. Au début de chaque manche, un joueur pose la petite blinde, l'autre la grosse blinde (qui a priorité sur la première enchère). Chaque joueur reçoit une carte cachée ; le reste forme la pioche.</p>
+          <h4 class="goldL mb05">Mise en place</h4>
+          <p class="muted mb1">Chaque joueur reçoit 20 jetons et une carte cachée. Le reste forme la pioche. Un joueur a le "token" de priorité, qui tourne d'une manche à l'autre.</p>
 
           <h4 class="goldL mb05">Phase d'enchères</h4>
-          <p class="muted mb1">À chaque phase, une carte est révélée. Le joueur prioritaire ouvre l'enchère ou passe. S'il passe, l'autre récupère la carte gratuitement. S'il ouvre, les joueurs surenchérissent jusqu'à abandon — le dernier proposant remporte la carte et paie sa mise, qui rejoint le pot (l'argent engagé est définitivement perdu, même en cas d'abandon). La priorité alterne à chaque carte. La manche s'arrête lorsque chaque joueur a 3 cartes.</p>
+          <p class="muted mb1">La manche se déroule en deux blocs d'enchères : le premier jusqu'à ce que chaque joueur ait 2 cartes, le second jusqu'à 3 cartes. À chaque carte révélée, le joueur prioritaire ouvre l'enchère ou passe. S'il passe, l'autre récupère la carte gratuitement. S'il ouvre, les joueurs surenchérissent jusqu'à abandon — le dernier proposant remporte la carte ; les jetons engagés sont définitivement perdus, même en cas d'abandon, et ne profitent à personne d'autre.</p>
 
           <h4 class="goldL mb05">Résolution</h4>
-          <p class="muted mb1">Chaque joueur révèle ses 3 cartes. Les némésis annulent les royales présentes (qui sortent du classement). Puis : royale > classique > némésis > valeur numérique totale en cas d'égalité de combinaison ou d'absence de combinaison. En cas d'égalité parfaite, le pot est partagé.</p>
+          <p class="muted mb1">Chaque joueur révèle ses 3 cartes. Les némésis annulent les royales présentes (qui sortent du classement). Puis : royale > classique > némésis > valeur numérique totale en l'absence de combinaison. En cas d'égalité parfaite, les jetons restants de chacun départagent ; si l'égalité persiste, la manche est partagée entre les joueurs concernés.</p>
 
           <h4 class="goldL mb05">Variante 3-4 joueurs</h4>
-          <p class="muted mb1">Le deck est doublé (14 cartes, 2 exemplaires de chaque). Un joueur est grosse blinde, tous les autres posent une petite blinde. À 3 joueurs, une carte est brûlée face visible au début (pour remplacer le 4e joueur absent), et une seconde dès que chacun a obtenu sa 2e carte. Quand un joueur atteint 3 cartes, il sort des enchères ; les autres continuent jusqu'à compléter leur main.</p>
+          <p class="muted mb1">Le deck est doublé (14 cartes, 2 exemplaires de chaque). L'enchère sur chaque carte circule autour de la table : les joueurs qui abandonnent l'enchère ne reçoivent rien dans l'immédiat. Dès qu'un déséquilibre de mains apparaît entre les joueurs encore en jeu, celui qui est en retard reçoit automatiquement une carte cachée gratuite. À 3 joueurs, deux cartes sont mises hors jeu face visible par le croupier.</p>
         </div>
         <div class="row" style="justify-content:center;margin-top:1rem">
           <button class="btn-primary" id="btn-close-rules">Fermer</button>

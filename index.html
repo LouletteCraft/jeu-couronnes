@@ -24,6 +24,9 @@
   body { background: var(--bg); color: var(--text); font-family: Georgia, serif; min-height: 100vh; }
   h1,h2,h3 { font-family: Georgia, serif; }
   #app { max-width: 900px; margin: 0 auto; padding: 0 1rem 3rem; }
+  @media(min-width: 880px){
+    #app.in-game { max-width: 1180px; }
+  }
   header { text-align: center; padding: 1.5rem 1rem 1rem; border-bottom: 1px solid var(--bord); margin-bottom: 1.25rem; }
   header h1 { font-size: 2rem; font-weight: 700; color: var(--goldL); letter-spacing: .06em; }
   header p  { color: var(--muted); font-size: .85rem; margin-top: .25rem; font-family: sans-serif; }
@@ -49,10 +52,11 @@
   .tag-active   { display:inline-block;padding:3px 10px;border-radius:999px;font-size:.75rem;font-family:sans-serif;background:#14532d;color:var(--green);border:1px solid #166534; }
   .tag-out      { display:inline-block;padding:3px 10px;border-radius:999px;font-size:.75rem;font-family:sans-serif;background:#1c1c30;color:var(--muted);border:1px solid var(--bord); }
   .crd { border-radius: 9px; border: 2px solid var(--bord); background: var(--card);
-         display: flex; flex-direction: column; align-items: center; justify-content: center;
-         flex-shrink: 0; user-select: none; transition: box-shadow .2s, border-color .2s; }
-  .crd.sm  { width: 64px; height: 92px; }
-  .crd.lg  { width: 92px; height: 132px; }
+         display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+         flex-shrink: 0; user-select: none; transition: box-shadow .2s, border-color .2s;
+         padding: .4rem .5rem; min-width: 0; }
+  .crd.sm  { padding: .3rem .35rem; }
+  .crd.lg  { padding: .45rem .6rem; }
   .crd.hidden { background: #0a0a16; }
   .crd.glow   { border-color: var(--gold); box-shadow: 0 0 14px #c9a84c55; }
   .crd.burned { opacity: .45; border-style: dashed; }
@@ -63,8 +67,18 @@
   .crd .hidden-sym { font-size: 2rem; color: var(--bord); }
   .crd.sm .hidden-sym { font-size: 1.4rem; }
   .crd-empty { border-radius: 7px; border: 1px dashed var(--bord); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-  .crd-empty.sm { width:64px; height:92px; }
-  .players-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: .65rem; margin-bottom: 1rem; }
+  .crd-empty.sm { width:52px; height:62px; }
+  .crd-empty.lg { width:64px; height:76px; }
+  .players-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: .65rem; margin-bottom: 1rem; }
+
+  /* ── Layout desktop : colonne principale + colonne latérale ── */
+  .game-layout { display: flex; flex-direction: column; gap: 0; }
+  .game-main   { min-width: 0; }
+  .game-side   { min-width: 0; }
+  @media(min-width: 880px){
+    .game-layout { display: grid; grid-template-columns: 1fr 320px; gap: 1.25rem; align-items: start; }
+    .game-side { position: sticky; top: 1rem; }
+  }
   .player-box { background: var(--surf); border: 1px solid var(--bord); border-radius: 12px; padding: .9rem; transition: border-color .2s; }
   .player-box.mine   { border-color: #4c1d9588; }
   .player-box.active { border-color: var(--gold); }
@@ -310,6 +324,7 @@ function renderCombosRef(myCardIds=[]){
 // LOBBY
 // ═══════════════════════════════════════════════
 function screenLobby(err=""){
+  app.classList.remove("in-game");
   render(`
     <div class="box">
       <h2 class="goldL mb05" style="font-size:1.3rem">Bienvenue</h2>
@@ -386,6 +401,7 @@ function screenLobby(err=""){
 // ═══════════════════════════════════════════════
 let waitingUnsub=null;
 function screenWaiting(sess){
+  app.classList.remove("in-game");
   if(waitingUnsub){waitingUnsub();waitingUnsub=null;}
   render(`
     <div class="box accent">
@@ -499,19 +515,26 @@ let gameActing=false;
 function screenGame(sess,initialRs){
   if(gameUnsub){gameUnsub();gameUnsub=null;}
   gameActing=false;
+  app.classList.add("in-game");
   render(`
     <div id="game-header" class="row-sb mb1"></div>
     <div id="burned-area"></div>
-    <div id="players-grid" class="players-grid"></div>
-    <div id="auction-area"></div>
-    <div id="manche-over-area"></div>
-    <div class="box" style="overflow:hidden;padding:0;margin-bottom:1rem">
-      <div style="padding:.4rem 1rem;border-bottom:1px solid var(--bord);font-family:sans-serif;font-size:.75rem;color:var(--muted)">Journal</div>
-      <div id="log"></div>
+    <div class="game-layout">
+      <div class="game-main">
+        <div id="players-grid" class="players-grid"></div>
+        <div id="auction-area"></div>
+        <div id="manche-over-area"></div>
+      </div>
+      <div class="game-side">
+        <div class="box" style="overflow:hidden;padding:0;margin-bottom:1rem">
+          <div style="padding:.4rem 1rem;border-bottom:1px solid var(--bord);font-family:sans-serif;font-size:.75rem;color:var(--muted)">Journal</div>
+          <div id="log"></div>
+        </div>
+        <div class="box" id="scores-box"></div>
+        <button class="tog-btn" id="tog-c3">▼ Voir les combinaisons</button>
+        <div id="combos-ref3" class="hidden"></div>
+      </div>
     </div>
-    <div class="box" id="scores-box"></div>
-    <button class="tog-btn" id="tog-c3">▼ Voir les combinaisons</button>
-    <div id="combos-ref3" class="hidden"></div>
     <div id="modal-area"></div>
   `);
   let cOpen=false;
@@ -867,6 +890,7 @@ function doNextRound(s){
 // GAME OVER
 // ═══════════════════════════════════════════════
 function screenGameOver(sess,rs){
+  app.classList.remove("in-game");
   const sorted=[...(rs.allScores||[])].sort((a,b)=>b.total-a.total);
   const richest=[...rs.players].sort((a,b)=>b.coins-a.coins);
   render(`
